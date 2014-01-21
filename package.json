@@ -1,16 +1,10 @@
 {
-  "name": "database",
-  "version": "0.0.0",
-  "description": "",
-  "main": "app.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "",
-  "license": "BSD",
   "dependencies": {
-    "sequelize": "~2.0.0-beta.1",
-    "nconf": "~0.6.9",
-    "mysql": "~2.0.0-rc2"
+    "express": "~3.4.8",
+    "sequelize": "~1.7.0-rc2",
+    "async": "~0.2.9"
+  },
+  "devDependencies": {
+    "mysql": "~2.0.0-alpha7"
   }
 }
