@@ -14,7 +14,7 @@ function ValidationErrors(err) {
 
 ValidationErrors.prototype = Error.prototype;
 
-models.sequelize.sync().success(function () {
+function runServer() {
   var app = express();
 
   app.use(express.bodyParser());
@@ -45,6 +45,8 @@ models.sequelize.sync().success(function () {
 
   app.listen(PORT);
   console.log('Listening %d', PORT);
-}).error(function (err) {
+}
+
+models.sequelize.sync({ force: true }).success(runServer).error(function (err) {
   throw err;
 });

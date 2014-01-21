@@ -25,6 +25,7 @@ module.exports.EnergyConsumptions = sequelize.define('energy_consumptions', {
   },
   kw: Sequelize.FLOAT,
   kwh: Sequelize.FLOAT,
+  kwh_difference: Sequelize.FLOAT
 }, {
   define: {
     freezeTableName: true
