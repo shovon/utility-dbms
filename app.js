@@ -1,30 +1,30 @@
 var express = require('express');
-var Sequelize = require('sequelize');
+var models = require('./models');
 var async = require('async');
 
 var PORT = 3000;
 
-var sequelize = new Sequelize('test', 'root', 'root', {
-  host: '127.0.0.1'
-});
+function ValidationErrors(err) {
+  var finalMessage = [];
+  Object.keys(err).forEach(function (key) {
+    finalMessage.push(key + ': ' + err[key]);
+  });
+  this.message = finalMessage.join('\n');
+}
 
-var EnergyConsumptions = sequelize.define('EnergyConsumptions', {
-  device_id: Sequelize.INTEGER.UNSIGNED,
-  kw: Sequelize.FLOAT,
-  kwh: Sequelize.FLOAT,
-});
+ValidationErrors.prototype = Error.prototype;
 
-sequelize.sync().success(function () {
+models.sequelize.sync().success(function () {
   var app = express();
 
   app.use(express.bodyParser());
 
   app.post('/energy-consumptions', function (req, res, next) {
     async.each(req.body, function (con, callback) {
-      EnergyConsumptions.create(con).success(function () {
+      models.EnergyConsumptions.create(con).success(function () {
         callback(null);
       }).error(function (err) {
-        callback(err);
+        callback(new ValidationErrors(err));
       });
     }, function (err) {
       if (err) {
@@ -34,6 +34,14 @@ sequelize.sync().success(function () {
       res.send('Success');
     });
   });
+
+  app.use(function (err, req, res, next) {
+    if (err instanceof ValidationErrors) {
+      return res.send(400, err.message);
+    }
+    return next(err);
+  });
+
 
   app.listen(PORT);
   console.log('Listening %d', PORT);
