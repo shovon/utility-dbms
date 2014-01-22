@@ -21,7 +21,7 @@ var sequelize =
 
 // TODO: unit test this.
 function roundTime(date, coeff) {
-  return new Date(Math.round(date.getTime() / coeff) * coeff);
+  return new Date(Math.floor(date.getTime() / coeff) * coeff);
 }
 
 var ONE_MINUTE = 1000 * 60;
@@ -64,6 +64,7 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
     }
   }, {
     classMethods: {
+      // TODO: unit test any errors that occur
       collectRecent: function (model, time, device_id) {
         var self = this;
 
@@ -81,6 +82,14 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
         };
 
         model.findAll().success(function (consumptions) {
+          //console.log(consumptions.map(function (con) { return con.values }));
+
+          console.log(consumptions.map(function (con) {
+            return con.values;
+          }).filter(function (con) {
+            return con.time > rounded && con.time <= time && con.device_id === device_id
+          }))
+
           model.findAll({
             where: [
               'time > ? && time <= ? && device_id = ?',
@@ -89,6 +98,8 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
               device_id
             ]
           }).success(function (consumptions) {
+            //console.log(consumptions.map(function (con) { return con.values }))
+
             var kwh = 0;
             if (consumptions.length) {
               kwh = consumptions.map(function (consumption) {
@@ -98,12 +109,10 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
               });
             }
 
-            self.find({ order: 'time DESC' }).success(function (minuteData) {
-              if (minuteData) {
-                console.log(rounded);
-                console.log(roundTime(
-                  new Date(minuteData.values.time), ONE_MINUTE));
-              }
+            self.find({
+              order: 'time DESC',
+              where: [ 'device_id = ?', device_id ]
+            }).success(function (minuteData) {
               if (
                   !minuteData ||
                   // For some odd reason, the queried values do not correspond
@@ -140,8 +149,7 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
           });
         }).error(function (err) {
           def.reject(err);
-        })
-
+        });
 
         return promise;
       }
@@ -188,8 +196,12 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
         var self = this;
 
         // Look for the most recent entry.
-        this.find({ order: 'time DESC' }).success(function (prev) {
+        this.find({ where: [ 'device_id = ?', consumption.values.device_id ], order: 'time DESC' }).success(function (prev) {
           if (prev) {
+            // console.log('Found a set of previous data');
+            // console.log('Queried device id: %d', consumption.values.device_id);
+            // console.log(prev.values);
+
             // We want our data to be inserted in chronological order. Throw
             // an error if anything screws up.
             if (prev.values.time > consumption.values.time) {
@@ -203,6 +215,7 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
             consumption.values.kwh_difference =
                 consumption.values.kwh - prev.values.kwh_difference
           } else {
+            console.log('Didn\'t find anything');
             consumption.values.kwh_difference = consumption.values.kwh
           }
 
@@ -213,7 +226,7 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
         OneMinuteEnergyConsumptions.collectRecent(
           this, 
           consumption.values.time,
-          parseInt(consumption.values.device_id, 10)
+          consumption.values.device_id
         )
         .success(function () {
           callback(null, consumption);
@@ -225,7 +238,7 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
 
 
 // Override the `bulkCreate` static method. And because this method is being
-// overridden, this may mean that bugs may arise. So far, there doesn't seem to
+// overridden, it may mean that bugs may arise. So far, there doesn't seem to
 // be any, so let's keep this overridden.
 EnergyConsumptions.bulkCreate = function (data) {
   var self = this;
