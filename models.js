@@ -84,12 +84,6 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
         model.findAll().success(function (consumptions) {
           //console.log(consumptions.map(function (con) { return con.values }));
 
-          console.log(consumptions.map(function (con) {
-            return con.values;
-          }).filter(function (con) {
-            return con.time > rounded && con.time <= time && con.device_id === device_id
-          }))
-
           model.findAll({
             where: [
               'time > ? && time <= ? && device_id = ?',
@@ -196,7 +190,10 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
         var self = this;
 
         // Look for the most recent entry.
-        this.find({ where: [ 'device_id = ?', consumption.values.device_id ], order: 'time DESC' }).success(function (prev) {
+        this.find({
+          where: [ 'device_id = ?', consumption.values.device_id ],
+          order: 'time DESC' })
+        .success(function (prev) {
           if (prev) {
             // console.log('Found a set of previous data');
             // console.log('Queried device id: %d', consumption.values.device_id);
@@ -212,10 +209,10 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
               );
               return callback(err);
             }
+            //console.log('Previous value found');
             consumption.values.kwh_difference =
-                consumption.values.kwh - prev.values.kwh_difference
+              consumption.values.kwh - prev.values.kwh;
           } else {
-            console.log('Didn\'t find anything');
             consumption.values.kwh_difference = consumption.values.kwh
           }
 
