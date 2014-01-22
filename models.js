@@ -1,6 +1,8 @@
 var Sequelize = require('sequelize');
 var bluebird = require('bluebird');
-var async = require('async')
+var async = require('async');
+var numbers = require('numbers');
+var _ = require('lodash');
 
 module.exports.ValidationErrors = ValidationErrors;
 function ValidationErrors(err) {
@@ -46,22 +48,12 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
       type: Sequelize.FLOAT,
       defaultValue: 0
     },
-    kwh_median: {
-      type: Sequelize.FLOAT,
-      defaultValue: 0
-    },
-    kwh_standard_deviation: {
-      type: Sequelize.FLOAT,
-      defaultValue: 0
-    },
-    kwh_min: {
-      type: Sequelize.FLOAT,
-      defaultValue: 0
-    },
-    kwh_max: {
-      type: Sequelize.FLOAT,
-      defaultValue: 0
-    }
+    kwh_median: Sequelize.FLOAT,
+    kwh_min: Sequelize.FLOAT,
+    kwh_max: Sequelize.FLOAT,
+    kwh_first_quartile: Sequelize.FLOAT,
+    kwh_third_quartile: Sequelize.FLOAT,
+    kwh_standard_deviation: Sequelize.FLOAT
   }, {
     classMethods: {
       // TODO: unit test any errors that occur
@@ -81,60 +73,86 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
           return promise.then(function () {}, fn);
         };
 
-        model.findAll().success(function (consumptions) {
-          //console.log(consumptions.map(function (con) { return con.values }));
+        model.findAll({
+          where: [
+            'time > ? && time <= ? && device_id = ?',
+            rounded,
+            time,
+            device_id
+          ]
+        }).success(function (consumptions) {
+          var kwh_sum = 0;
+          var kwh_average = 0;
+          var kwh_median;
+          var kwh_standard_deviation;
+          var kwh_min;
+          var kwh_max;
+          var kwh_first_quartile;
+          var kwh_third_quartile;
+          if (consumptions.length) {
+            var kwhs = consumptions.map(function (consumption) {
+              return consumption.values.kwh_difference
+            });
+            kwh_sum = kwhs.reduce(function (prev, curr) {
+              return prev + curr;
+            });
+            var report = numbers.statistic.report(kwhs);
+            kwh_average = report.mean;
+            kwh_median = report.median;
+            kwh_first_quartile = report.firstQuartile;
+            kwh_third_quartile = report.thirdQuartile;
+            kwh_min = kwhs.slice().sort()[0];
+            kwh_max = kwhs.slice().sort()[kwhs.length - 1];
+            kwh_standard_deviation = report.standardDev;
+          }
 
-          model.findAll({
-            where: [
-              'time > ? && time <= ? && device_id = ?',
-              rounded,
-              time,
-              device_id
-            ]
-          }).success(function (consumptions) {
-            //console.log(consumptions.map(function (con) { return con.values }))
+          self.find({
+            order: 'time DESC',
+            where: [ 'device_id = ?', device_id ]
+          }).success(function (minuteData) {
+            if (
+                !minuteData ||
+                // For some odd reason, the queried values do not correspond
+                // with the columns defined in the database schema. Hence why
+                // I'm omitting the `.getTime()` call from
+                // `minuteData.values.time`.
+                rounded.getTime() !==
+                  roundTime(minuteData.values.time, ONE_MINUTE).getTime()
+            ) {
+              self.create({
+                time: roundTime(time, ONE_MINUTE),
+                device_id: device_id,
 
-            var kwh = 0;
-            if (consumptions.length) {
-              kwh = consumptions.map(function (consumption) {
-                return consumption.values.kwh_difference
-              }).reduce(function (prev, curr) {
-                return prev + curr;
-              });
-            }
+                kwh_sum: kwh_sum,
+                kwh_average: kwh_average,
+                kwh_median: kwh_median,
+                kwh_standard_deviation: kwh_standard_deviation,
+                kwh_min: kwh_min,
+                kwh_max: kwh_max,
+                kwh_first_quartile: kwh_first_quartile,
+                kwh_third_quartile: kwh_third_quartile
 
-            self.find({
-              order: 'time DESC',
-              where: [ 'device_id = ?', device_id ]
-            }).success(function (minuteData) {
-              if (
-                  !minuteData ||
-                  // For some odd reason, the queried values do not correspond
-                  // with the columns defined in the database schema. Hence why
-                  // I'm omitting the `.getTime()` call from
-                  // `minuteData.values.time`.
-                  rounded.getTime() !==
-                    roundTime(minuteData.values.time, ONE_MINUTE).getTime()
-              ) {
-                self.create({
-                  time: roundTime(time, ONE_MINUTE),
-                  device_id: device_id,
-                  kwh_sum: kwh
-                }).success(function (minuteData) {
-                  def.resolve(minuteData);
-                }).error(function (err) {
-                  def.reject(err);
-                });
-                return
-              }
-
-
-              minuteData.values.kwh_sum = kwh
-              minuteData.save().success(function (minuteData) {
+              }).success(function (minuteData) {
                 def.resolve(minuteData);
               }).error(function (err) {
                 def.reject(err);
               });
+              return
+            }
+
+            _.assign(minuteData.values, {
+              kwh_sum: kwh_sum,
+              kwh_average: kwh_average,
+              kwh_median: kwh_median,
+              kwh_standard_deviation: kwh_standard_deviation,
+              kwh_min: kwh_min,
+              kwh_max: kwh_max,
+              kwh_first_quartile: kwh_first_quartile,
+              kwh_third_quartile: kwh_third_quartile
+            });
+
+            minuteData.save().success(function (minuteData) {
+              def.resolve(minuteData);
             }).error(function (err) {
               def.reject(err);
             });
@@ -195,10 +213,6 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
           order: 'time DESC' })
         .success(function (prev) {
           if (prev) {
-            // console.log('Found a set of previous data');
-            // console.log('Queried device id: %d', consumption.values.device_id);
-            // console.log(prev.values);
-
             // We want our data to be inserted in chronological order. Throw
             // an error if anything screws up.
             if (prev.values.time > consumption.values.time) {
@@ -209,7 +223,6 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
               );
               return callback(err);
             }
-            //console.log('Previous value found');
             consumption.values.kwh_difference =
               consumption.values.kwh - prev.values.kwh;
           } else {

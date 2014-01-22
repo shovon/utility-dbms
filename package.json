@@ -3,9 +3,14 @@
     "express": "~3.4.8",
     "sequelize": "1.7.x",
     "async": "~0.2.9",
-    "bluebird": "~1.0.0"
+    "bluebird": "~1.0.0",
+    "lodash": "~2.4.1"
   },
   "devDependencies": {
-    "mysql": "~2.0.0-alpha7"
+    "mysql": "~2.0.0-alpha7",
+    "expect.js": "~0.2.0"
+  },
+  "scripts": {
+    "test": "./node_modules/mocha/bin/mocha"
   }
 }
