@@ -71,7 +71,7 @@ var consumptionCommon = {
 };
 
 function createCollector(interval) {
-  return function (model, time, device_id) {
+  return function (granularModel, time, device_id) {
     var self = this;
 
     var rounded = roundTime(time, interval);
@@ -87,7 +87,7 @@ function createCollector(interval) {
       return promise.then(function () {}, fn);
     };
 
-    model.findAll({
+    granularModel.model.findAll({
       where: [
         'time > ? && time <= ? && device_id = ?',
         rounded,
@@ -101,7 +101,7 @@ function createCollector(interval) {
       };
       if (consumptions.length) {
         var kwhs = consumptions.map(function (consumption) {
-          return consumption.values.kwh_difference
+          return consumption.values[granularModel.readingsPropertyName];
         });
         statistics.kwh_sum = kwhs.reduce(function (prev, curr) {
           return prev + curr;
@@ -165,7 +165,7 @@ function createCollector(interval) {
 }
 
 function createTotalsCollector(interval) {
-  return function (model, time) {
+  return function (granularModel, time) {
     var self = this;
 
     // TODO: soft code the `ONE_MINUTE`. Instead of relying on the
@@ -183,7 +183,7 @@ function createTotalsCollector(interval) {
       return promise.then(function () {}, fn);
     };
 
-    model.findAll({
+    granularModel.model.findAll({
       where: [
         'time > ? && time <= ?',
         rounded,
@@ -197,7 +197,7 @@ function createTotalsCollector(interval) {
       };
       if (consumptions.length) {
         var kwhs = consumptions.map(function (consumption) {
-          return consumption.values.kwh_difference;
+          return consumption.values[granularModel.readingsPropertyName];
         });
         statistics.kwh_sum = kwhs.reduce(function (prev, curr) {
           return prev + curr;
@@ -325,7 +325,10 @@ var EnergyConsumptionsTotals = module.exports.EnergyConsumptionsTotals =
         },
         afterCreate: function (consumption, callback) {
           OneMinuteEnergyConsumptionsTotals.collectRecent(
-            this,
+            {
+              model: this,
+              readingsPropertyName: 'kwh_difference'
+            },
             consumption.values.time
           )
           .success(function () {
@@ -379,7 +382,10 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
       },
       afterCreate: function (consumption, callback) {
         OneMinuteEnergyConsumptions.collectRecent(
-          this, 
+          {
+            model: this,
+            readingsPropertyName: 'kwh_difference'
+          }, 
           consumption.values.time,
           consumption.values.device_id
         )
