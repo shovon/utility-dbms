@@ -9,6 +9,9 @@ function runServer() {
   app.use(express.bodyParser());
 
   app.post('/energy-consumptions', function (req, res, next) {
+    // TODO: determine what to do if the client provides data, without providing
+    //   the time.
+
     models.EnergyConsumptions.bulkCreate(req.body).success(function () {
       res.send('Success!');
     }).error(next);

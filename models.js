@@ -12,7 +12,6 @@ function ValidationErrors(err) {
   });
   this.message = finalMessage.join('\n');
 }
-
 ValidationErrors.prototype = Error.prototype;
 
 var sequelize = 
@@ -29,7 +28,7 @@ function roundTime(date, coeff) {
 var ONE_MINUTE = 1000 * 60;
 
 var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
-  sequelize.define('one_minute_energy_consumptions', {
+  sequelize.define('energy_consumptions_1m', {
     device_id: {
       type: Sequelize.INTEGER.UNSIGNED,
       validate: {
@@ -55,6 +54,7 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
     kwh_third_quartile: Sequelize.FLOAT,
     kwh_standard_deviation: Sequelize.FLOAT
   }, {
+    freezeTableName: true,
     classMethods: {
       // TODO: unit test any errors that occur
       collectRecent: function (model, time, device_id) {
@@ -81,29 +81,25 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
             device_id
           ]
         }).success(function (consumptions) {
-          var kwh_sum = 0;
-          var kwh_average = 0;
-          var kwh_median;
-          var kwh_standard_deviation;
-          var kwh_min;
-          var kwh_max;
-          var kwh_first_quartile;
-          var kwh_third_quartile;
+          var statistics = {
+            kwh: 0,
+            kwh_average: 0
+          }
           if (consumptions.length) {
             var kwhs = consumptions.map(function (consumption) {
               return consumption.values.kwh_difference
             });
-            kwh_sum = kwhs.reduce(function (prev, curr) {
+            statistics.kwh_sum = kwhs.reduce(function (prev, curr) {
               return prev + curr;
             });
             var report = numbers.statistic.report(kwhs);
-            kwh_average = report.mean;
-            kwh_median = report.median;
-            kwh_first_quartile = report.firstQuartile;
-            kwh_third_quartile = report.thirdQuartile;
-            kwh_min = kwhs.slice().sort()[0];
-            kwh_max = kwhs.slice().sort()[kwhs.length - 1];
-            kwh_standard_deviation = report.standardDev;
+            statistics.kwh_average = report.mean;
+            statistics.kwh_median = report.median;
+            statistics.kwh_first_quartile = report.firstQuartile;
+            statistics.kwh_third_quartile = report.thirdQuartile;
+            statistics.kwh_min = kwhs.slice().sort()[0];
+            statistics.kwh_max = kwhs.slice().sort()[kwhs.length - 1];
+            statistics.kwh_standard_deviation = report.standardDev;
           }
 
           self.find({
@@ -119,20 +115,16 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
                 rounded.getTime() !==
                   roundTime(minuteData.values.time, ONE_MINUTE).getTime()
             ) {
-              self.create({
-                time: roundTime(time, ONE_MINUTE),
-                device_id: device_id,
-
-                kwh_sum: kwh_sum,
-                kwh_average: kwh_average,
-                kwh_median: kwh_median,
-                kwh_standard_deviation: kwh_standard_deviation,
-                kwh_min: kwh_min,
-                kwh_max: kwh_max,
-                kwh_first_quartile: kwh_first_quartile,
-                kwh_third_quartile: kwh_third_quartile
-
-              }).success(function (minuteData) {
+              self.create(
+                _.assign(
+                  {
+                    time: roundTime(time, ONE_MINUTE),
+                    device_id: device_id
+                  },
+                  statistics
+                )
+              )
+              .success(function (minuteData) {
                 def.resolve(minuteData);
               }).error(function (err) {
                 def.reject(err);
@@ -140,16 +132,7 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
               return
             }
 
-            _.assign(minuteData.values, {
-              kwh_sum: kwh_sum,
-              kwh_average: kwh_average,
-              kwh_median: kwh_median,
-              kwh_standard_deviation: kwh_standard_deviation,
-              kwh_min: kwh_min,
-              kwh_max: kwh_max,
-              kwh_first_quartile: kwh_first_quartile,
-              kwh_third_quartile: kwh_third_quartile
-            });
+            _.assign(minuteData.values, statistics);
 
             minuteData.save().success(function (minuteData) {
               def.resolve(minuteData);
@@ -168,41 +151,76 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
     }
   });
 
+var consumptionCommon = {
+  time: {
+    type: Sequelize.DATE,
+    validate: {
+      notNull: true
+    }
+  },
+
+  kw: {
+    type: Sequelize.FLOAT,
+    defaultValue: 0
+  },
+  kwh: {
+    type: Sequelize.FLOAT,
+    defaultValue: 0
+  },
+  kwh_difference: {
+    type: Sequelize.FLOAT,
+    defaultValue: 0
+  }
+};
+
+var EnergyConsumptionsTotal = module.exports.EnergyConsumptionsTotal =
+  sequelize.define(
+    'energy_consumptions_totals',
+      _.assign({}, consumptionCommon), {
+      freezeTableName: true,
+      timestamps: false,
+      hooks: {
+        beforeValidate: function (consumption, callback) {
+          var self = this;
+
+          this.find({
+            order: 'time DESC'
+          })
+          .success(function (prev) {
+            if (prev) {
+              if (prev.values.time > consumption.values.time) {
+                var err = new Error(
+                  'Current time: ' + consumption.values.time + '\n' +
+                  'Previous time: ' + prev.values.time + '\n\n' +
+                  'Current time must be greater than previous time'
+                );
+                return callback(err);
+              }
+              consumption.values.kwh_difference =
+                consumption.values.kwh - prev.values.kwh;
+            } else {
+              consumption.values.kwh_difference = consumption.values.kwh;
+            }
+
+            callback(null, consumption);
+          })
+          .error(callback);
+        }
+      }
+    }
+  )
+
 var EnergyConsumptions = module.exports.EnergyConsumptions =
-  sequelize.define('energy_consumptions', {
+  sequelize.define('energy_consumptions', _.assign({
     device_id: {
       type: Sequelize.INTEGER.UNSIGNED,
       validate: {
         notNull: true
       }
     },
-    time: {
-      type: Sequelize.DATE,
-      validate: {
-        notNull: true
-      }
-    },
-
-    // Below, kw, kwh, kwh_difference all have a default value explicitly set.
-    // We don't want MySQL to have them be set to NULL, in case no value was
-    // specified.
-
-    kw: {
-      type: Sequelize.FLOAT,
-      defaultValue: 0
-    },
-    kwh: {
-      type: Sequelize.FLOAT,
-      defaultValue: 0
-    },
-    kwh_difference: {
-      type: Sequelize.FLOAT,
-      defaultValue: 0
-    }
-  }, {
-    define: {
-      freezeTableName: true
-    },
+  }, consumptionCommon), {
+    freezeTableName: true,
+    timestamps: false,
     hooks: {
       beforeValidate: function (consumption, callback) {
         var self = this;
@@ -253,7 +271,10 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
 EnergyConsumptions.bulkCreate = function (data) {
   var self = this;
   var def = bluebird.defer();
-  async.each(data, function (con, callback) {
+  async.each(data.devices, function (con, callback) {
+    var con = _.assign({
+      time: data.time
+    }, con);
     EnergyConsumptions.create(con).success(function (con) {
       callback(null, con);
     }).error(function (err) {
@@ -262,12 +283,40 @@ EnergyConsumptions.bulkCreate = function (data) {
       }
       callback(new ValidationErrors(err));
     });
-  }, function (err, result) {
+  }, function (err, consumptions) {
     if (err) {
-      def.reject(err);
+      return def.reject(err);
     }
 
-    def.resolve(result);
+    var totals = _.assign(
+      data.devices.map(function (data) {
+        return {
+          kw: data.kw,
+          kwh: data.kwh
+        };
+      })
+      .reduce(function (prev, curr) {
+        return {
+          kw: prev.kw + curr.kw,
+          kwh: prev.kwh + curr.kwh
+        };
+      }),
+      {
+        time: data.time
+      }
+    );
+
+    EnergyConsumptionsTotal
+    .create(totals)
+    .success(function (consumptionTotal) {
+      def.resolve({
+        consumptions: consumptions,
+        consumptionTotal: consumptionTotal
+      });
+    })
+    .error(function (err) {
+      def.reject(err);
+    });
   });
   var promise = def.promise;
   promise.success = function (fn) {
