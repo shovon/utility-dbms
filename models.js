@@ -26,6 +26,7 @@ function roundTime(date, coeff) {
 }
 
 var ONE_MINUTE = 1000 * 60;
+var FIVE_MINUTES = 1000 * 60 * 5;
 
 var granularityCommon = {
   time: {
@@ -70,7 +71,7 @@ var consumptionCommon = {
   }
 };
 
-function createCollector(interval) {
+function createCollector(interval, nextGranularity) {
   return function (granularModel, time, device_id) {
     var self = this;
 
@@ -99,6 +100,10 @@ function createCollector(interval) {
         kwh: 0,
         kwh_average: 0
       };
+      if (interval === FIVE_MINUTES) {
+        console.log(consumptions.length);
+        console.log(!!consumptions.length);
+      }
       if (consumptions.length) {
         var kwhs = consumptions.map(function (consumption) {
           return consumption.values[granularModel.readingsPropertyName];
@@ -114,12 +119,32 @@ function createCollector(interval) {
         statistics.kwh_min = kwhs.slice().sort()[0];
         statistics.kwh_max = kwhs.slice().sort()[kwhs.length - 1];
         statistics.kwh_standard_deviation = report.standardDev;
+        if (interval === FIVE_MINUTES) {
+          console.log('Goood');
+          console.log(statistics)
+        }
       }
 
       self.find({
         order: 'time DESC',
         where: [ 'device_id = ?', device_id ]
+        // TODO: rename the minuteData parameter to something else.
       }).success(function (minuteData) {
+        function collectNext(prevData) {
+          nextGranularity.collectRecent(
+            {
+              model: self,
+              readingsPropertyName: 'kwh_sum'
+            },
+            prevData.values.time,
+            device_id
+          ).success(function (nextData) {
+            def.resolve(nextData);
+          }).error(function (err) {
+            def.reject(err)
+          });
+        }
+
         if (
             !minuteData ||
             // For some odd reason, the queried values do not correspond
@@ -139,7 +164,11 @@ function createCollector(interval) {
             )
           )
           .success(function (minuteData) {
-            def.resolve(minuteData);
+            if (!nextGranularity) {
+              return def.resolve(minuteData);
+            }
+
+            collectNext(minuteData);
           }).error(function (err) {
             def.reject(err);
           });
@@ -149,7 +178,11 @@ function createCollector(interval) {
         _.assign(minuteData.values, statistics);
 
         minuteData.save().success(function (minuteData) {
-          def.resolve(minuteData);
+          if (!nextGranularity) {
+            return def.resolve(minuteData);
+          }
+
+          collectNext(minuteData);
         }).error(function (err) {
           def.reject(err);
         });
@@ -273,6 +306,23 @@ var OneMinuteEnergyConsumptionsTotals =
       }
     );
 
+var FiveMinutesEnergyConsumptions =
+  module.exports.FiveMinutesEnergyConsumptions =
+    sequelize.define('energy_consumptions_5m', _.assign({
+      device_id: {
+        type: Sequelize.INTEGER.UNSIGNED,
+        validate: {
+          notNull: true
+        }
+      }
+    }, granularityCommon), {
+      freezeTableName: true,
+      timestamps: false,
+      classMethods: {
+        collectRecent: createCollector(FIVE_MINUTES)
+      }
+    });
+
 var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
   sequelize.define('energy_consumptions_1m', _.assign({
     device_id: {
@@ -286,7 +336,7 @@ var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
     timestamps: false,
     classMethods: {
       // TODO: unit test any errors that occur
-      collectRecent: createCollector(ONE_MINUTE)
+      collectRecent: createCollector(ONE_MINUTE, FiveMinutesEnergyConsumptions)
     }
   });
 
