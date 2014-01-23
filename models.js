@@ -100,10 +100,6 @@ function createCollector(interval, nextGranularity) {
         kwh: 0,
         kwh_average: 0
       };
-      if (interval === FIVE_MINUTES) {
-        console.log(consumptions.length);
-        console.log(!!consumptions.length);
-      }
       if (consumptions.length) {
         var kwhs = consumptions.map(function (consumption) {
           return consumption.values[granularModel.readingsPropertyName];
@@ -119,10 +115,6 @@ function createCollector(interval, nextGranularity) {
         statistics.kwh_min = kwhs.slice().sort()[0];
         statistics.kwh_max = kwhs.slice().sort()[kwhs.length - 1];
         statistics.kwh_standard_deviation = report.standardDev;
-        if (interval === FIVE_MINUTES) {
-          console.log('Goood');
-          console.log(statistics)
-        }
       }
 
       self.find({
