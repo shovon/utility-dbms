@@ -1,0 +1,4 @@
+- rename the API's requirement of a `device_id` to `device_number`. The client does not know the actual ID stored in the table. It only knows the physical device number
+- rename all instances of the word `average` to `mean`. Average was trying to imply `mean`, but not always *does* "average" immply "mean"; it can also imply median
+- establish different behaviours for different environment (environments as in development, production, testing, etc
+- include a running total on each table

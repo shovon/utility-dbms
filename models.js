@@ -48,237 +48,6 @@ var granularityCommon = {
   kwh_standard_deviation: Sequelize.FLOAT
 };
 
-var OneMinuteEnergyConsumptionsTotals =
-  module.exports.OneMinuteEnergyConsumptionsTotals =
-    sequelize.define(
-      'energy_consumptions_totals_1m',
-      _.assign({}, granularityCommon), {
-        freezeTableName: true,
-        timestamps: false,
-        classMethods: {
-          // TODO: soft code this.
-          collectRecent: function (model, time) {
-            var self = this;
-
-            // TODO: soft code the `ONE_MINUTE`. Instead of relying on the
-            //   constant, have it be a parameter of some sort.
-            var rounded = roundTime(time, ONE_MINUTE);
-
-            var def = bluebird.defer();
-            var promise = def.promise;
-
-            promise.success = function (fn) {
-              return promise.then(fn);
-            };
-
-            promise.error = function (fn) {
-              return promise.then(function () {}, fn);
-            };
-
-            model.findAll({
-              where: [
-                'time > ? && time <= ?',
-                rounded,
-                time
-              ]
-            })
-            .success(function (consumptions) {
-              var statistics = {
-                kwh: 0,
-                kwh_average: 0
-              };
-              if (consumptions.length) {
-                var kwhs = consumptions.map(function (consumption) {
-                  return consumption.values.kwh_difference;
-                });
-                statistics.kwh_sum = kwhs.reduce(function (prev, curr) {
-                  return prev + curr;
-                });
-                var report = numbers.statistic.report(kwhs);
-                statistics.kwh_average = report.mean;
-                statistics.kwh_median = report.median;
-                statistics.kwh_first_quartile = report.firstQuartile;
-                statistics.kwh_third_quartile = report.thirdQuartile;
-                statistics.kwh_min = kwhs.slice().sort()[0];
-                statistics.kwh_max = kwhs.slice().sort()[kwhs.length - 1];
-                statistics.kwh_standard_deviation = report.standardDev;
-              }
-
-              self.find({
-                order: 'time DESC'
-              })
-              .success(function (minuteData) {
-                if (
-                  !minuteData ||
-                  rounded.getTime() !==
-                    roundTime(minuteData.values.time, ONE_MINUTE).getTime()
-                ) {
-                  self.create(
-                    _.assign(
-                      {
-                        time: roundTime(time, ONE_MINUTE)
-                      },
-                      statistics
-                    )
-                  )
-                  .success(function () {
-                    def.resolve(minuteData);
-                  })
-                  .error(function (err) {
-                    def.reject(err);
-                  });
-                  return;
-                }
-
-                _.assign(minuteData.values, statistics);
-
-                minuteData.save().success(function (minuteData) {
-                  def.resolve(minuteData);
-                })
-                .error(function (err) {
-                  def.reject(err);
-                })
-              })
-              .error(function (err) {
-                def.reject(err);
-              });
-            })
-            .error(function (err) {
-              def.reject(err);
-            });
-
-            return promise;
-          }
-        }
-      }
-    );
-
-var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
-  sequelize.define('energy_consumptions_1m', {
-    device_id: {
-      type: Sequelize.INTEGER.UNSIGNED,
-      validate: {
-        notNull: true
-      }
-    },
-    time: {
-      type: Sequelize.DATE,
-      notNull: true
-    },
-    kwh_sum: {
-      type: Sequelize.FLOAT,
-      defaultValue: 0
-    },
-    // TODO: rename this.
-    kwh_average: {
-      type: Sequelize.FLOAT,
-      defaultValue: 0
-    },
-    kwh_median: Sequelize.FLOAT,
-    kwh_min: Sequelize.FLOAT,
-    kwh_max: Sequelize.FLOAT,
-    kwh_first_quartile: Sequelize.FLOAT,
-    kwh_third_quartile: Sequelize.FLOAT,
-    kwh_standard_deviation: Sequelize.FLOAT
-  }, {
-    freezeTableName: true,
-    timestamps: false,
-    classMethods: {
-      // TODO: unit test any errors that occur
-      collectRecent: function (model, time, device_id) {
-        var self = this;
-
-        var rounded = roundTime(time, ONE_MINUTE);
-
-        var def = bluebird.defer();
-        var promise = def.promise;
-
-        promise.success = function (fn) {
-          return promise.then(fn);
-        };
-
-        promise.error = function (fn) {
-          return promise.then(function () {}, fn);
-        };
-
-        model.findAll({
-          where: [
-            'time > ? && time <= ? && device_id = ?',
-            rounded,
-            time,
-            device_id
-          ]
-        }).success(function (consumptions) {
-          var statistics = {
-            kwh: 0,
-            kwh_average: 0
-          };
-          if (consumptions.length) {
-            var kwhs = consumptions.map(function (consumption) {
-              return consumption.values.kwh_difference
-            });
-            statistics.kwh_sum = kwhs.reduce(function (prev, curr) {
-              return prev + curr;
-            });
-            var report = numbers.statistic.report(kwhs);
-            statistics.kwh_average = report.mean;
-            statistics.kwh_median = report.median;
-            statistics.kwh_first_quartile = report.firstQuartile;
-            statistics.kwh_third_quartile = report.thirdQuartile;
-            statistics.kwh_min = kwhs.slice().sort()[0];
-            statistics.kwh_max = kwhs.slice().sort()[kwhs.length - 1];
-            statistics.kwh_standard_deviation = report.standardDev;
-          }
-
-          self.find({
-            order: 'time DESC',
-            where: [ 'device_id = ?', device_id ]
-          }).success(function (minuteData) {
-            if (
-                !minuteData ||
-                // For some odd reason, the queried values do not correspond
-                // with the columns defined in the database schema. Hence why
-                // I'm omitting the `.getTime()` call from
-                // `minuteData.values.time`.
-                rounded.getTime() !==
-                  roundTime(minuteData.values.time, ONE_MINUTE).getTime()
-            ) {
-              self.create(
-                _.assign(
-                  {
-                    time: roundTime(time, ONE_MINUTE),
-                    device_id: device_id
-                  },
-                  statistics
-                )
-              )
-              .success(function (minuteData) {
-                def.resolve(minuteData);
-              }).error(function (err) {
-                def.reject(err);
-              });
-              return
-            }
-
-            _.assign(minuteData.values, statistics);
-
-            minuteData.save().success(function (minuteData) {
-              def.resolve(minuteData);
-            }).error(function (err) {
-              def.reject(err);
-            });
-          }).error(function (err) {
-            def.reject(err);
-          });
-        }).error(function (err) {
-          def.reject(err);
-        });
-
-        return promise;
-      }
-    }
-  });
-
 var consumptionCommon = {
   time: {
     type: Sequelize.DATE,
@@ -300,6 +69,226 @@ var consumptionCommon = {
     defaultValue: 0
   }
 };
+
+function createCollector(interval) {
+  return function (model, time, device_id) {
+    var self = this;
+
+    var rounded = roundTime(time, interval);
+
+    var def = bluebird.defer();
+    var promise = def.promise;
+
+    promise.success = function (fn) {
+      return promise.then(fn);
+    };
+
+    promise.error = function (fn) {
+      return promise.then(function () {}, fn);
+    };
+
+    model.findAll({
+      where: [
+        'time > ? && time <= ? && device_id = ?',
+        rounded,
+        time,
+        device_id
+      ]
+    }).success(function (consumptions) {
+      var statistics = {
+        kwh: 0,
+        kwh_average: 0
+      };
+      if (consumptions.length) {
+        var kwhs = consumptions.map(function (consumption) {
+          return consumption.values.kwh_difference
+        });
+        statistics.kwh_sum = kwhs.reduce(function (prev, curr) {
+          return prev + curr;
+        });
+        var report = numbers.statistic.report(kwhs);
+        statistics.kwh_average = report.mean;
+        statistics.kwh_median = report.median;
+        statistics.kwh_first_quartile = report.firstQuartile;
+        statistics.kwh_third_quartile = report.thirdQuartile;
+        statistics.kwh_min = kwhs.slice().sort()[0];
+        statistics.kwh_max = kwhs.slice().sort()[kwhs.length - 1];
+        statistics.kwh_standard_deviation = report.standardDev;
+      }
+
+      self.find({
+        order: 'time DESC',
+        where: [ 'device_id = ?', device_id ]
+      }).success(function (minuteData) {
+        if (
+            !minuteData ||
+            // For some odd reason, the queried values do not correspond
+            // with the columns defined in the database schema. Hence why
+            // I'm omitting the `.getTime()` call from
+            // `minuteData.values.time`.
+            rounded.getTime() !==
+              roundTime(minuteData.values.time, interval).getTime()
+        ) {
+          self.create(
+            _.assign(
+              {
+                time: roundTime(time, interval),
+                device_id: device_id
+              },
+              statistics
+            )
+          )
+          .success(function (minuteData) {
+            def.resolve(minuteData);
+          }).error(function (err) {
+            def.reject(err);
+          });
+          return
+        }
+
+        _.assign(minuteData.values, statistics);
+
+        minuteData.save().success(function (minuteData) {
+          def.resolve(minuteData);
+        }).error(function (err) {
+          def.reject(err);
+        });
+      }).error(function (err) {
+        def.reject(err);
+      });
+    }).error(function (err) {
+      def.reject(err);
+    });
+
+    return promise;
+  };
+}
+
+function createTotalsCollector(interval) {
+  return function (model, time) {
+    var self = this;
+
+    // TODO: soft code the `ONE_MINUTE`. Instead of relying on the
+    //   constant, have it be a parameter of some sort.
+    var rounded = roundTime(time, interval);
+
+    var def = bluebird.defer();
+    var promise = def.promise;
+
+    promise.success = function (fn) {
+      return promise.then(fn);
+    };
+
+    promise.error = function (fn) {
+      return promise.then(function () {}, fn);
+    };
+
+    model.findAll({
+      where: [
+        'time > ? && time <= ?',
+        rounded,
+        time
+      ]
+    })
+    .success(function (consumptions) {
+      var statistics = {
+        kwh: 0,
+        kwh_average: 0
+      };
+      if (consumptions.length) {
+        var kwhs = consumptions.map(function (consumption) {
+          return consumption.values.kwh_difference;
+        });
+        statistics.kwh_sum = kwhs.reduce(function (prev, curr) {
+          return prev + curr;
+        });
+        var report = numbers.statistic.report(kwhs);
+        statistics.kwh_average = report.mean;
+        statistics.kwh_median = report.median;
+        statistics.kwh_first_quartile = report.firstQuartile;
+        statistics.kwh_third_quartile = report.thirdQuartile;
+        statistics.kwh_min = kwhs.slice().sort()[0];
+        statistics.kwh_max = kwhs.slice().sort()[kwhs.length - 1];
+        statistics.kwh_standard_deviation = report.standardDev;
+      }
+
+      self.find({
+        order: 'time DESC'
+      })
+      .success(function (minuteData) {
+        if (
+          !minuteData ||
+          rounded.getTime() !==
+            roundTime(minuteData.values.time, interval).getTime()
+        ) {
+          self.create(
+            _.assign(
+              {
+                time: roundTime(time, interval)
+              },
+              statistics
+            )
+          )
+          .success(function () {
+            def.resolve(minuteData);
+          })
+          .error(function (err) {
+            def.reject(err);
+          });
+          return;
+        }
+
+        _.assign(minuteData.values, statistics);
+
+        minuteData.save().success(function (minuteData) {
+          def.resolve(minuteData);
+        })
+        .error(function (err) {
+          def.reject(err);
+        })
+      })
+      .error(function (err) {
+        def.reject(err);
+      });
+    })
+    .error(function (err) {
+      def.reject(err);
+    });
+
+    return promise;
+  }
+}
+
+var OneMinuteEnergyConsumptionsTotals =
+  module.exports.OneMinuteEnergyConsumptionsTotals =
+    sequelize.define(
+      'energy_consumptions_totals_1m',
+      _.assign({}, granularityCommon), {
+        freezeTableName: true,
+        timestamps: false,
+        classMethods: {
+          // TODO: soft code this.
+          collectRecent: createTotalsCollector(ONE_MINUTE)
+        }
+      }
+    );
+
+var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
+  sequelize.define('energy_consumptions_1m', _.assign({
+    device_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      validate: {
+        notNull: true
+      }
+    },
+  }, granularityCommon), {
+    freezeTableName: true,
+    timestamps: false,
+    classMethods: {
+      // TODO: unit test any errors that occur
+      collectRecent: createCollector(ONE_MINUTE)
+    }
+  });
 
 var EnergyConsumptionsTotals = module.exports.EnergyConsumptionsTotals =
   sequelize.define(
