@@ -323,6 +323,25 @@ function createTotalsModel(tableName, interval, nextGranularity) {
   );
 }
 
+function createModel(tableName, interval, nextGranularity) {
+  return sequelize.define(tableName, _.assign({
+    device_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      validate: {
+        notNull: true
+      }
+    }
+  }, granularityCommon), {
+    freezeTableName: true,
+    timestamps: false,
+    classMethods: {
+      collectRecent: nextGranularity ?
+        createCollector(interval, nextGranularity) :
+          createCollector(interval)
+    }
+  });
+}
+
 // TODO: make these energy consumption models more DRY.
 
 var OneHourEnergyConsumptionsTotals =
@@ -347,54 +366,23 @@ var OneMinuteEnergyConsumptionsTotals =
 
 var OneHourEnergyConsumptions =
   module.exports.OneHourEnergyConsumptions =
-    sequelize.define('energy_consumptions_1h', _.assign({
-      device_id: {
-        type: Sequelize.INTEGER.UNSIGNED,
-        validate: {
-          notNull: true
-        }
-      }
-    }, granularityCommon), {
-      freezeTableName: true,
-      timestamps: false,
-      classMethods: {
-        collectRecent: createCollector(ONE_HOUR)
-      }
-    });
+    createModel('energy_consumptions_1h', ONE_HOUR);
 
 var FiveMinutesEnergyConsumptions =
   module.exports.FiveMinutesEnergyConsumptions =
-    sequelize.define('energy_consumptions_5m', _.assign({
-      device_id: {
-        type: Sequelize.INTEGER.UNSIGNED,
-        validate: {
-          notNull: true
-        }
-      }
-    }, granularityCommon), {
-      freezeTableName: true,
-      timestamps: false,
-      classMethods: {
-        collectRecent: createCollector(FIVE_MINUTES, OneHourEnergyConsumptions)
-      }
-    });
+    createModel(
+      'energy_consumptions_5m',
+      FIVE_MINUTES,
+      OneHourEnergyConsumptions
+    )
 
-var OneMinuteEnergyConsumptions = module.exports.OneMinuteEnergyConsumptions =
-  sequelize.define('energy_consumptions_1m', _.assign({
-    device_id: {
-      type: Sequelize.INTEGER.UNSIGNED,
-      validate: {
-        notNull: true
-      }
-    },
-  }, granularityCommon), {
-    freezeTableName: true,
-    timestamps: false,
-    classMethods: {
-      // TODO: unit test any errors that occur
-      collectRecent: createCollector(ONE_MINUTE, FiveMinutesEnergyConsumptions)
-    }
-  });
+var OneMinuteEnergyConsumptions =
+  module.exports.OneMinuteEnergyConsumptions =
+    createModel(
+      'energy_consumptions_1m',
+      ONE_MINUTE,
+      FiveMinutesEnergyConsumptions
+    );
 
 var EnergyConsumptionsTotals = module.exports.EnergyConsumptionsTotals =
   sequelize.define(
