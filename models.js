@@ -27,6 +27,7 @@ function roundTime(date, coeff) {
 
 var ONE_MINUTE = 1000 * 60;
 var FIVE_MINUTES = 1000 * 60 * 5;
+var ONE_HOUR = 1000 * 60 * 60;
 
 var granularityCommon = {
   time: {
@@ -189,12 +190,10 @@ function createCollector(interval, nextGranularity) {
   };
 }
 
-function createTotalsCollector(interval) {
+function createTotalsCollector(interval, nextGranularity) {
   return function (granularModel, time) {
     var self = this;
 
-    // TODO: soft code the `ONE_MINUTE`. Instead of relying on the
-    //   constant, have it be a parameter of some sort.
     var rounded = roundTime(time, interval);
 
     var def = bluebird.defer();
@@ -240,7 +239,24 @@ function createTotalsCollector(interval) {
       self.find({
         order: 'time DESC'
       })
+      // TODO: rename the minuteData parameter to something else.
       .success(function (minuteData) {
+        function collectNext(prevData) {
+          nextGranularity.collectRecent(
+            {
+              model: self,
+              readingsPropertyName: 'kwh_sum'
+            },
+            prevData.values.time
+          )
+          .success(function (nextData) {
+            def.resolve(nextData);
+          })
+          .error(function (err) {
+            def.reject(err);
+          });
+        }
+
         if (
           !minuteData ||
           rounded.getTime() !==
@@ -254,8 +270,12 @@ function createTotalsCollector(interval) {
               statistics
             )
           )
-          .success(function () {
-            def.resolve(minuteData);
+          .success(function (minuteData) {
+            if (!nextGranularity) {
+              return def.resolve(minuteData);
+            }
+
+            collectNext(minuteData);
           })
           .error(function (err) {
             def.reject(err);
@@ -266,7 +286,11 @@ function createTotalsCollector(interval) {
         _.assign(minuteData.values, statistics);
 
         minuteData.save().success(function (minuteData) {
-          def.resolve(minuteData);
+          if (!nextGranularity) {
+            return def.resolve(minuteData);
+          }
+          
+          collectNext(minuteData);
         })
         .error(function (err) {
           def.reject(err);
@@ -284,19 +308,59 @@ function createTotalsCollector(interval) {
   }
 }
 
+function createTotalsModel(tableName, interval, nextGranularity) {
+  return sequelize.define(
+    tableName,
+    _.assign({}, granularityCommon), {
+      freezeTableName: true,
+      timestamps: false,
+      classMethods: {
+        collectRecent: nextGranularity ?
+          createTotalsCollector(interval, nextGranularity) :
+            createTotalsCollector(interval)
+      }
+    }
+  );
+}
+
+// TODO: make these energy consumption models more DRY.
+
+var OneHourEnergyConsumptionsTotals =
+  module.exports.OneHourEnergyConsumptionsTotals =
+    createTotalsModel('energy_consumptions_totals_1h', ONE_HOUR);
+
+var FiveMinutesEnergyConsumptionsTotals =
+  module.exports.FiveMinutesEnergyConsumptionsTotals =
+    createTotalsModel(
+      'energy_consumptions_totals_5m',
+      FIVE_MINUTES,
+      OneHourEnergyConsumptionsTotals
+    );
+
 var OneMinuteEnergyConsumptionsTotals =
   module.exports.OneMinuteEnergyConsumptionsTotals =
-    sequelize.define(
-      'energy_consumptions_totals_1m',
-      _.assign({}, granularityCommon), {
-        freezeTableName: true,
-        timestamps: false,
-        classMethods: {
-          // TODO: soft code this.
-          collectRecent: createTotalsCollector(ONE_MINUTE)
+    createTotalsModel(
+      'energy_consumptions_1h',
+      ONE_MINUTE,
+      FiveMinutesEnergyConsumptionsTotals
+    );
+
+var OneHourEnergyConsumptions =
+  module.exports.OneHourEnergyConsumptions =
+    sequelize.define('energy_consumptions_1h', _.assign({
+      device_id: {
+        type: Sequelize.INTEGER.UNSIGNED,
+        validate: {
+          notNull: true
         }
       }
-    );
+    }, granularityCommon), {
+      freezeTableName: true,
+      timestamps: false,
+      classMethods: {
+        collectRecent: createCollector(ONE_HOUR)
+      }
+    });
 
 var FiveMinutesEnergyConsumptions =
   module.exports.FiveMinutesEnergyConsumptions =
@@ -311,7 +375,7 @@ var FiveMinutesEnergyConsumptions =
       freezeTableName: true,
       timestamps: false,
       classMethods: {
-        collectRecent: createCollector(FIVE_MINUTES)
+        collectRecent: createCollector(FIVE_MINUTES, OneHourEnergyConsumptions)
       }
     });
 
