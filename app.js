@@ -24,10 +24,16 @@ function runServer() {
     return next(err);
   });
 
+  app.use(function (err, req, res, next) {
+    console.log(err.device_id);
+    return next(err);
+  });
 
   app.listen(PORT);
   console.log('Listening %d', PORT);
 }
+
+debugger;
 
 models.sequelize.sync({ force: true }).success(runServer).error(function (err) {
   throw err;

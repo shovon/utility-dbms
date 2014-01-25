@@ -342,47 +342,76 @@ function createModel(tableName, interval, nextGranularity) {
   });
 }
 
-// TODO: make these energy consumption models more DRY.
+var seriesCollection = {};
 
-var OneHourEnergyConsumptionsTotals =
-  module.exports.OneHourEnergyConsumptionsTotals =
-    createTotalsModel('energy_consumptions_totals_1h', ONE_HOUR);
+(function () {
 
-var FiveMinutesEnergyConsumptionsTotals =
-  module.exports.FiveMinutesEnergyConsumptionsTotals =
-    createTotalsModel(
-      'energy_consumptions_totals_5m',
-      FIVE_MINUTES,
-      OneHourEnergyConsumptionsTotals
-    );
+  // TODO: no need of constants.
+  var seriesCollectionMeta = {
+    '1m': {
+      interval: ONE_MINUTE,
+      nextGranularity: '5m'
+    },
+    '5m': {
+      interval: FIVE_MINUTES,
+      nextGranularity: '1h'
+    },
+    '1h': {
+      interval: ONE_HOUR
+    }
+  };
 
-var OneMinuteEnergyConsumptionsTotals =
-  module.exports.OneMinuteEnergyConsumptionsTotals =
-    createTotalsModel(
-      'energy_consumptions_1h',
-      ONE_MINUTE,
-      FiveMinutesEnergyConsumptionsTotals
-    );
+  var done = {};
 
-var OneHourEnergyConsumptions =
-  module.exports.OneHourEnergyConsumptions =
-    createModel('energy_consumptions_1h', ONE_HOUR);
+  function setSeries(key) {
 
-var FiveMinutesEnergyConsumptions =
-  module.exports.FiveMinutesEnergyConsumptions =
-    createModel(
-      'energy_consumptions_5m',
-      FIVE_MINUTES,
-      OneHourEnergyConsumptions
-    )
+    if (done[key]) {
+      return;
+    }
 
-var OneMinuteEnergyConsumptions =
-  module.exports.OneMinuteEnergyConsumptions =
-    createModel(
-      'energy_consumptions_1m',
-      ONE_MINUTE,
-      FiveMinutesEnergyConsumptions
-    );
+    var nextGranularity = seriesCollectionMeta[key].nextGranularity;
+    if (nextGranularity) {
+
+      setSeries(nextGranularity);
+
+      seriesCollection[key].model = createModel(
+        'energy_consumptions_' + key,
+        seriesCollectionMeta[key].interval,
+        seriesCollection[nextGranularity].model
+      );
+
+      seriesCollection[key].totalsModel = createTotalsModel(
+        'energy_consumptions_totals_' + key,
+        seriesCollectionMeta[key].interval,
+        seriesCollection[nextGranularity].totalsModel
+      );
+
+    } else {
+
+      seriesCollection[key].model = createModel(
+        'energy_consumptions_' + key,
+        seriesCollectionMeta[key].interval
+      );
+
+      seriesCollection[key].totalsModel = createTotalsModel(
+        'energy_consumptions_totals_' + key,
+        seriesCollectionMeta[key].interval
+      );
+
+    }
+
+    done[key] = true;
+
+  }
+
+  Object.keys(seriesCollectionMeta).map(function (key) {
+    seriesCollection[key] = {};
+    return key;
+  }).forEach(function (key) {
+    setSeries(key);
+  });
+
+})();
 
 var EnergyConsumptionsTotals = module.exports.EnergyConsumptionsTotals =
   sequelize.define(
@@ -418,7 +447,7 @@ var EnergyConsumptionsTotals = module.exports.EnergyConsumptionsTotals =
           .error(callback);
         },
         afterCreate: function (consumption, callback) {
-          OneMinuteEnergyConsumptionsTotals.collectRecent(
+          seriesCollection['1m'].totalsModel.collectRecent(
             {
               model: this,
               readingsPropertyName: 'kwh_difference'
@@ -475,7 +504,7 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
         }).error(callback);
       },
       afterCreate: function (consumption, callback) {
-        OneMinuteEnergyConsumptions.collectRecent(
+        seriesCollection['1m'].model.collectRecent(
           {
             model: this,
             readingsPropertyName: 'kwh_difference'
@@ -498,7 +527,7 @@ EnergyConsumptions.bulkCreate = function (data) {
   var self = this;
   var def = bluebird.defer();
   async.each(data.devices, function (con, callback) {
-    var con = _.assign({
+    con = _.assign({
       time: data.time
     }, con);
     EnergyConsumptions.create(con).success(function (con) {
