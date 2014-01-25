@@ -4,6 +4,11 @@ var async = require('async');
 var numbers = require('numbers');
 var _ = require('lodash');
 
+/*
+ * Represents an error that occurs after determining that a set of inputs are
+ * invalid for inserting into the database.
+ */
+
 module.exports.ValidationErrors = ValidationErrors;
 function ValidationErrors(err) {
   var finalMessage = [];
@@ -14,16 +19,30 @@ function ValidationErrors(err) {
 }
 ValidationErrors.prototype = Error.prototype;
 
+/*
+ * A sequelize connection object.
+ */
+
 var sequelize = 
   module.exports.sequelize = 
+  // TODO: connect based on settings.
   new Sequelize('test', 'root', 'root', {
     host: '127.0.0.1'
   });
+
+/*
+ * Floor to the nearest interval of a given date object. E.g. 12:32 will be
+ * floored to 12:30 if the interval was 1000 * 60 * 5.
+ */
 
 // TODO: unit test this.
 function roundTime(date, coeff) {
   return new Date(Math.floor(date.getTime() / coeff) * coeff);
 }
+
+/*
+ * A common set of schema attributes that each of the granularities will share.
+ */
 
 var granularityCommon = {
   time: {
@@ -46,6 +65,11 @@ var granularityCommon = {
   kwh_standard_deviation: Sequelize.FLOAT
 };
 
+/*
+ * A common set of schema attributes that both the `energy_consumptions` *and*
+ * `energy_consumptions_totals` will share.
+ */
+
 var consumptionCommon = {
   time: {
     type: Sequelize.DATE,
@@ -67,6 +91,12 @@ var consumptionCommon = {
     defaultValue: 0
   }
 };
+
+/*
+ * Returns a funcion that will be used for merging multiple data points in a
+ * higher granularity as well as notify other lower granular models that this
+ * model had an update.
+ */
 
 function createCollector(interval, nextGranularity) {
   return function (granularModel, time, device_id) {
@@ -185,6 +215,11 @@ function createCollector(interval, nextGranularity) {
   };
 }
 
+/*
+ * Same thing as the above `createCollector` function, except used for the
+ * `energy_consumptions_totals_` tables.
+ */
+
 function createTotalsCollector(interval, nextGranularity) {
   return function (granularModel, time) {
     var self = this;
@@ -302,20 +337,12 @@ function createTotalsCollector(interval, nextGranularity) {
   }
 }
 
-function createTotalsModel(tableName, interval, nextGranularity) {
-  return sequelize.define(
-    tableName,
-    _.assign({}, granularityCommon), {
-      freezeTableName: true,
-      timestamps: false,
-      classMethods: {
-        collectRecent: nextGranularity ?
-          createTotalsCollector(interval, nextGranularity) :
-            createTotalsCollector(interval)
-      }
-    }
-  );
-}
+/*
+ * Generates a model.
+ *
+ * A model is what will be used for storing and retrieving data in a particular
+ * time-series granularity.
+ */
 
 function createModel(tableName, interval, nextGranularity) {
   return sequelize.define(tableName, _.assign({
@@ -335,6 +362,31 @@ function createModel(tableName, interval, nextGranularity) {
     }
   });
 }
+
+/*
+ * Generates a model that will be used to get the energy consumption of all the
+ * devices as a whole.
+ */
+
+function createTotalsModel(tableName, interval, nextGranularity) {
+  return sequelize.define(
+    tableName,
+    _.assign({}, granularityCommon), {
+      freezeTableName: true,
+      timestamps: false,
+      classMethods: {
+        collectRecent: nextGranularity ?
+          createTotalsCollector(interval, nextGranularity) :
+            createTotalsCollector(interval)
+      }
+    }
+  );
+}
+
+/*
+ * Will hold a list of all models that represent a series, in a given time
+ * series.
+ */
 
 var seriesCollection = {};
 
@@ -406,6 +458,10 @@ var seriesCollection = {};
 
 })();
 
+/*
+ * Holds information about the data usage of all the data combined.
+ */
+
 var EnergyConsumptionsTotals = module.exports.EnergyConsumptionsTotals =
   sequelize.define(
     'energy_consumptions_totals',
@@ -455,6 +511,10 @@ var EnergyConsumptionsTotals = module.exports.EnergyConsumptionsTotals =
       }
     }
   )
+
+/*
+ * Holds information about energy usage by every single devices.
+ */
 
 var EnergyConsumptions = module.exports.EnergyConsumptions =
   sequelize.define('energy_consumptions', _.assign({
@@ -512,6 +572,22 @@ var EnergyConsumptions = module.exports.EnergyConsumptions =
       }
     }
   });
+
+/*
+ * An override of the `bulkCreate` static method. Accepts an array of data.
+ * The data takes on the format of
+ *
+ *     {
+ *       "time": ...,
+ *       "devices": [
+ *         {
+ *           kw: ...
+ *           kwh: ...
+ *         }
+ *       ...
+ *       ]
+ *     }
+ */
 
 // Override the `bulkCreate` static method. And because this method is being
 // overridden, it may mean that bugs may arise. So far, there doesn't seem to
