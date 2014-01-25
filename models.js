@@ -234,7 +234,6 @@ function createTotalsCollector(interval, nextGranularity) {
       self.find({
         order: 'time DESC'
       })
-      // TODO: rename the unitData parameter to something else.
       .success(function (unitData) {
         function collectNext(prevData) {
           nextGranularity.collectRecent(
