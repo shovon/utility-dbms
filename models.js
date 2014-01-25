@@ -25,10 +25,6 @@ function roundTime(date, coeff) {
   return new Date(Math.floor(date.getTime() / coeff) * coeff);
 }
 
-var ONE_MINUTE = 1000 * 60;
-var FIVE_MINUTES = 1000 * 60 * 5;
-var ONE_HOUR = 1000 * 60 * 60;
-
 var granularityCommon = {
   time: {
     type: Sequelize.DATE,
@@ -346,18 +342,17 @@ var seriesCollection = {};
 
 (function () {
 
-  // TODO: no need of constants.
   var seriesCollectionMeta = {
     '1m': {
-      interval: ONE_MINUTE,
+      interval: 1000 * 60,
       nextGranularity: '5m'
     },
     '5m': {
-      interval: FIVE_MINUTES,
+      interval: 1000 * 60 * 5,
       nextGranularity: '1h'
     },
     '1h': {
-      interval: ONE_HOUR
+      interval: 1000 * 60 * 60
     }
   };
 
