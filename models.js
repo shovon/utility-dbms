@@ -117,8 +117,7 @@ function createCollector(interval, nextGranularity) {
       self.find({
         order: 'time DESC',
         where: [ 'device_id = ?', device_id ]
-        // TODO: rename the minuteData parameter to something else.
-      }).success(function (minuteData) {
+      }).success(function (unitData) {
         function collectNext(prevData) {
           nextGranularity.collectRecent(
             {
@@ -135,13 +134,13 @@ function createCollector(interval, nextGranularity) {
         }
 
         if (
-            !minuteData ||
+            !unitData ||
             // For some odd reason, the queried values do not correspond
             // with the columns defined in the database schema. Hence why
             // I'm omitting the `.getTime()` call from
-            // `minuteData.values.time`.
+            // `unitData.values.time`.
             rounded.getTime() !==
-              roundTime(minuteData.values.time, interval).getTime()
+              roundTime(unitData.values.time, interval).getTime()
         ) {
           self.create(
             _.assign(
@@ -152,26 +151,26 @@ function createCollector(interval, nextGranularity) {
               statistics
             )
           )
-          .success(function (minuteData) {
+          .success(function (unitData) {
             if (!nextGranularity) {
-              return def.resolve(minuteData);
+              return def.resolve(unitData);
             }
 
-            collectNext(minuteData);
+            collectNext(unitData);
           }).error(function (err) {
             def.reject(err);
           });
           return
         }
 
-        _.assign(minuteData.values, statistics);
+        _.assign(unitData.values, statistics);
 
-        minuteData.save().success(function (minuteData) {
+        unitData.save().success(function (unitData) {
           if (!nextGranularity) {
-            return def.resolve(minuteData);
+            return def.resolve(unitData);
           }
 
-          collectNext(minuteData);
+          collectNext(unitData);
         }).error(function (err) {
           def.reject(err);
         });
@@ -235,8 +234,8 @@ function createTotalsCollector(interval, nextGranularity) {
       self.find({
         order: 'time DESC'
       })
-      // TODO: rename the minuteData parameter to something else.
-      .success(function (minuteData) {
+      // TODO: rename the unitData parameter to something else.
+      .success(function (unitData) {
         function collectNext(prevData) {
           nextGranularity.collectRecent(
             {
@@ -254,9 +253,9 @@ function createTotalsCollector(interval, nextGranularity) {
         }
 
         if (
-          !minuteData ||
+          !unitData ||
           rounded.getTime() !==
-            roundTime(minuteData.values.time, interval).getTime()
+            roundTime(unitData.values.time, interval).getTime()
         ) {
           self.create(
             _.assign(
@@ -266,12 +265,12 @@ function createTotalsCollector(interval, nextGranularity) {
               statistics
             )
           )
-          .success(function (minuteData) {
+          .success(function (unitData) {
             if (!nextGranularity) {
-              return def.resolve(minuteData);
+              return def.resolve(unitData);
             }
 
-            collectNext(minuteData);
+            collectNext(unitData);
           })
           .error(function (err) {
             def.reject(err);
@@ -279,14 +278,14 @@ function createTotalsCollector(interval, nextGranularity) {
           return;
         }
 
-        _.assign(minuteData.values, statistics);
+        _.assign(unitData.values, statistics);
 
-        minuteData.save().success(function (minuteData) {
+        unitData.save().success(function (unitData) {
           if (!nextGranularity) {
-            return def.resolve(minuteData);
+            return def.resolve(unitData);
           }
           
-          collectNext(minuteData);
+          collectNext(unitData);
         })
         .error(function (err) {
           def.reject(err);
