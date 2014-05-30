@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "develop": "NODE_ENV=development nodemon app.js"
+  },
+  "dependencies": {
+    "mysql": "^2.3.2",
+    "express": "^4.3.2",
+    "nconf": "^0.6.9",
+    "async": "^0.9.0",
+    "lodash": "^2.4.1",
+    "body-parser": "^1.2.2"
+  }
+}
