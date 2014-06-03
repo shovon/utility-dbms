@@ -7,6 +7,8 @@ var util = require('util');
 var _ = require('lodash');
 var bodyParser = require('body-parser');
 
+// TODO: convert all constants to `const` type variables.
+
 var mysqlSettings = _.pick(
   settings.get('mysql'),
   [ 'host', 'user', 'password', 'database' ]
@@ -94,6 +96,14 @@ app.post('/data', function (req, res, next) {
   //       time: <ISO 8601 date string>
   //     }
 
+  // TODO: have another way to check if body has the correct elements in it.
+  // TODO: ensure that all insertions occur in parallel.
+  // TODO: check to ensure that new insertion requests have larger times.
+
+  if (!_.isArray(req.body)) {
+    return res.send(400, 'Data must be a JSON array.');
+  }
+
   async.waterfall([
 
     // Store the actual data into the database.
@@ -120,14 +130,14 @@ app.post('/data', function (req, res, next) {
               function (err, result) {
                 if (err) { return callback(err); }
                 var row = result && result.length ? result[0] : null
-                callback(null, row);
+                callback(null, device, row);
               }
             )
           },
 
           // Finally, insert the data point that the client provided, as well as
           // update the running total.
-          function (row, callback) {
+          function (device, row, callback) {
             var insertionQuery =
               mysql.format(
                 'INSERT INTO data_points ( \
@@ -135,9 +145,9 @@ app.post('/data', function (req, res, next) {
                   value, \
                   running_total, \
                   time \
-                ) VALUES (?, ?, ?, FROM_UNIXTIME(?))',
+                ) VALUES (?, ?, ?, ?)',
                 [
-                  row.device_id,
+                  device.id,
                   item.value,
                   // Add the to-be inserted value to the running total, if there
                   // was a row found. Otherwise, just add to 0.
@@ -146,7 +156,7 @@ app.post('/data', function (req, res, next) {
                   // much easier to have MySQL convert the Unix timestamp, right
                   // before inserting the data. Maybe I will do a more
                   // appropriate insertion in the future.
-                  new Date(item.time).getTime() / 1000
+                  new Date(new Date(item.time).getTime() / 1000)
                 ]
               );
 
@@ -171,7 +181,83 @@ app.post('/data', function (req, res, next) {
 
     // Roll up the readings into buckets.
     function (callback) {
-      callback(new Error('Not yet implemented.'));
+      // Iterate through each items and insert/update rows for the different
+      // granularities.
+      async.each(req.body, function (item, callback) {
+        // Waterfall through the different granularities.
+        async.waterfall([
+          // The one minute granularity
+          function (callback) {
+            async.waterfall([
+              function (callback) {
+                // Get the device that is associated with the item in question.
+                getDevice(item.device_id, item.series, callback);
+              },
+
+              // This is where the insertion/update happens.
+              function (device, callback) {
+                // Get a time that is rounded to the nearest minute.
+                var coefficient = 1000 * 60;
+                var roundedDownTime =
+                  new Date(
+                    Math.floor(
+                      new Date(item.time).getTime() / coefficient
+                    ) * coefficient
+                  );
+
+                // Query the most recent per-minute entry.
+                singlestatementConnection.query(
+                  'SELECT * FROM data_points_1m WHERE device_id = ? AND \
+                  time >= ? ORDER BY time DESC LIMIT 1',
+                  [ device.id, roundedDownTime ],
+                  function (err, result) {
+                    if (err) { return callback(err); }
+
+                    // Since nothing came up, then just insert a new row.
+                    if (!result || !result.length) {
+                      return singlestatementConnection.query(
+                        'INSERT INTO data_points_1m \
+                        (device_id, mean, sum, min, max, time) \
+                        VALUES (?, ?, ?, ?, ?, ?)',
+                        [
+                          device.id,
+                          item.value,
+                          item.value,
+                          item.value,
+                          item.value,
+                          roundedDownTime
+                        ],
+                        function (err, result) {
+                          if (err) { return callback(err); }
+                          callback(null);
+                        }
+                      );
+                    }
+
+                    // Something came up. So let's run some computation.
+                    var row = result[0];
+                    var mean = (row.mean + item.value) / 2;
+                    var sum = row.sum + item.value;
+                    var min = item.value < row.min ? item.value : row.min;
+                    var max = item.value > row.max ? item.value : row.max;
+
+                    singlestatementConnection.query(
+                      'UPDATE data_points_1m \
+                      SET mean = ?, sum = ?, min = ?, max = ? \
+                      WHERE id = ?',
+                      [ mean, sum, min, max, row.id ],
+                      function (err, result) {
+                        if (err) { return callback(err); }
+                        callback(null);
+                      }
+                    );
+                  }
+                );
+              }
+            ], callback);
+          }
+        ], callback);
+      }, callback);
     }
 
   ], function (err) {
