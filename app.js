@@ -152,11 +152,7 @@ app.post('/data', function (req, res, next) {
                   // Add the to-be inserted value to the running total, if there
                   // was a row found. Otherwise, just add to 0.
                   row ? row.running_total + item.value : item.value,
-                  // Although, we won't be inserting timestamps, however, it's
-                  // much easier to have MySQL convert the Unix timestamp, right
-                  // before inserting the data. Maybe I will do a more
-                  // appropriate insertion in the future.
-                  new Date(new Date(item.time).getTime() / 1000)
+                  item.time
                 ]
               );
 
@@ -183,80 +179,165 @@ app.post('/data', function (req, res, next) {
     function (callback) {
       // Iterate through each items and insert/update rows for the different
       // granularities.
+
+      var granularities = [
+        { name: 'data_points_1m', interval: 1000 * 60 },
+        { name: 'data_points_1h', interval: 1000 * 60 * 60 },
+        { name: 'data_points_1d', interval: 1000 * 60 * 60 * 24 },
+        { name: 'data_points_1w', interval: 1000 * 60 * 60 * 24 * 7 },
+        { name: 'data_points_1mo', interval: 1000 * 60 * 60 * 24 * 30 },
+        { name: 'data_points_1y', interval: 1000 * 60 * 60 * 24 * 365 }
+      ];
+
       async.each(req.body, function (item, callback) {
+
         // Waterfall through the different granularities.
-        async.waterfall([
-          // The one minute granularity
-          function (callback) {
-            async.waterfall([
-              function (callback) {
-                // Get the device that is associated with the item in question.
-                getDevice(item.device_id, item.series, callback);
-              },
+        async.each(granularities, function (granularity, callback) {
+          // Get the time that is rounded to the nearest minute.
+          var roundedDownTime =
+            new Date(
+              Math.floor(
+                new Date(item.time).getTime() / granularity.interval
+              ) * granularity.interval
+            );
+          async.waterfall([
+            function (callback) {
+              // Just get the device associated with the device ID and the
+              // series name.
+              getDevice(item.device_id, item.series, callback);
+            },
 
-              // This is where the insertion/update happens.
-              function (device, callback) {
-                // Get a time that is rounded to the nearest minute.
-                var coefficient = 1000 * 60;
-                var roundedDownTime =
-                  new Date(
-                    Math.floor(
-                      new Date(item.time).getTime() / coefficient
-                    ) * coefficient
-                  );
+            // Query for the most recent entry.
+            function (device, callback) {
+              singlestatementConnection.query(
+                'SELECT * FROM ' + granularity.name + ' \
+                WHERE device_id = ? AND time >= ? ORDER BY time DESC LIMIT 1',
+                [ device.id, roundedDownTime ],
+                function (err, result) {
+                  if (err) { return callback(err); }
+                  callback(null, device, result);
+                }
+              );
+            },
 
-                // Query the most recent per-minute entry.
-                singlestatementConnection.query(
-                  'SELECT * FROM data_points_1m WHERE device_id = ? AND \
-                  time >= ? ORDER BY time DESC LIMIT 1',
-                  [ device.id, roundedDownTime ],
+            // Insert/update aggregate data.
+            function (device, result, callback) {
+              // Since nothing came up, then it means we should insert a new
+              // row.
+              if (!result || !result.length) {
+                return singlestatementConnection.query(
+                  'INSERT INTO ' + granularity.name + ' \
+                  (device_id, mean, sum, min, max, time) \
+                  VALUES (?, ?, ?, ?, ?, ?)',
+                  [
+                    device.id,
+                    item.value,
+                    item.value,
+                    item.value,
+                    item.value,
+                    roundedDownTime
+                  ],
                   function (err, result) {
                     if (err) { return callback(err); }
-
-                    // Since nothing came up, then just insert a new row.
-                    if (!result || !result.length) {
-                      return singlestatementConnection.query(
-                        'INSERT INTO data_points_1m \
-                        (device_id, mean, sum, min, max, time) \
-                        VALUES (?, ?, ?, ?, ?, ?)',
-                        [
-                          device.id,
-                          item.value,
-                          item.value,
-                          item.value,
-                          item.value,
-                          roundedDownTime
-                        ],
-                        function (err, result) {
-                          if (err) { return callback(err); }
-                          callback(null);
-                        }
-                      );
-                    }
-
-                    // Something came up. So let's run some computation.
-                    var row = result[0];
-                    var mean = (row.mean + item.value) / 2;
-                    var sum = row.sum + item.value;
-                    var min = item.value < row.min ? item.value : row.min;
-                    var max = item.value > row.max ? item.value : row.max;
-
-                    singlestatementConnection.query(
-                      'UPDATE data_points_1m \
-                      SET mean = ?, sum = ?, min = ?, max = ? \
-                      WHERE id = ?',
-                      [ mean, sum, min, max, row.id ],
-                      function (err, result) {
-                        if (err) { return callback(err); }
-                        callback(null);
-                      }
-                    );
+                    callback(null);
                   }
-                );
+                )
               }
-            ], callback);
-          }
-        ], callback);
+
+              // Something came up. We should then run some computation.
+
+              var row = result[0];
+              var mean = (row.mean + item.value) / 2;
+              var sum = row.sum + item.value;
+              var min = item.value < row.min ? item.value : row.min;
+              var max = item.value > row.max ? item.value : row.max;
+
+              singlestatementConnection.query(
+                'UPDATE ' + granularity.name + ' \
+                SET mean = ?, sum = ?, min = ?, max = ? \
+                WHERE id = ?',
+                [ mean, sum, min, max, row.id ],
+                function (err, result) {
+                  if (err) { return callback(err); }
+                  callback(null);
+                }
+              )
+            }
+          ], callback);
+        }, callback);
+
+        // async.waterfall([
+        //   // The one minute granularity
+        //   function (callback) {
+        //     async.waterfall([
+        //       function (callback) {
+        //         // Get the device that is associated with the item in question.
+        //         getDevice(item.device_id, item.series, callback);
+        //       },
+
+        //       // This is where the insertion/update happens.
+        //       function (device, callback) {
+        //         // Get a time that is rounded to the nearest minute.
+        //         var coefficient = 1000 * 60;
+        //         var roundedDownTime =
+        //           new Date(
+        //             Math.floor(
+        //               new Date(item.time).getTime() / coefficient
+        //             ) * coefficient
+        //           );
+
+        //         // Query the most recent per-minute entry.
+        //         singlestatementConnection.query(
+        //           'SELECT * FROM data_points_1m WHERE device_id = ? AND \
+        //           time >= ? ORDER BY time DESC LIMIT 1',
+        //           [ device.id, roundedDownTime ],
+        //           function (err, result) {
+        //             if (err) { return callback(err); }
+
+        //             // Since nothing came up, then just insert a new row.
+        //             if (!result || !result.length) {
+        //               return singlestatementConnection.query(
+        //                 'INSERT INTO data_points_1m \
+        //                 (device_id, mean, sum, min, max, time) \
+        //                 VALUES (?, ?, ?, ?, ?, ?)',
+        //                 [
+        //                   device.id,
+        //                   item.value,
+        //                   item.value,
+        //                   item.value,
+        //                   item.value,
+        //                   roundedDownTime
+        //                 ],
+        //                 function (err, result) {
+        //                   if (err) { return callback(err); }
+        //                   callback(null);
+        //                 }
+        //               );
+        //             }
+
+        //             // Something came up. So let's run some computation.
+        //             var row = result[0];
+        //             var mean = (row.mean + item.value) / 2;
+        //             var sum = row.sum + item.value;
+        //             var min = item.value < row.min ? item.value : row.min;
+        //             var max = item.value > row.max ? item.value : row.max;
+
+        //             singlestatementConnection.query(
+        //               'UPDATE data_points_1m \
+        //               SET mean = ?, sum = ?, min = ?, max = ? \
+        //               WHERE id = ?',
+        //               [ mean, sum, min, max, row.id ],
+        //               function (err, result) {
+        //                 if (err) { return callback(err); }
+        //                 callback(null);
+        //               }
+        //             );
+        //           }
+        //         );
+        //       }
+        //     ], callback);
+        //   }
+        // ], callback);
       }, callback);
     }
 
