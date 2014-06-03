@@ -1,5 +1,5 @@
-var nconf = require('nconf');
-var path = require('path');
+const nconf = require('nconf');
+const path = require('path');
 
 nconf.use('memory');
 nconf.set('environment', process.env.NODE_ENV || 'production');

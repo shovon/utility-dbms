@@ -1,46 +1,38 @@
-var mysql = require('mysql');
-var express = require('express');
-var settings = require('./settings');
-var lodash = require('lodash');
-var async = require('async');
-var util = require('util');
-var _ = require('lodash');
-var bodyParser = require('body-parser');
+const mysql = require('mysql');
+const express = require('express');
+const settings = require('./settings');
+const lodash = require('lodash');
+const async = require('async');
+const util = require('util');
+const _ = require('lodash');
+const bodyParser = require('body-parser');
 
-// TODO: convert all constants to `const` type variables.
+// TODO: all client errors should be responded using a 4xx error status code.
+//   hence, avoid calling the `next` callback.
 
-var mysqlSettings = _.pick(
+const mysqlSettings = _.pick(
   settings.get('mysql'),
   [ 'host', 'user', 'password', 'database' ]
 );
 
-var multistatementsMysqlSettings = _.assign(
-  {}, mysqlSettings, { multipleStatements: true }
-);
+const mysqlConnection = mysql.createConnection(mysqlSettings);
+mysqlConnection.connect();
 
-var singlestatementConnection = mysql.createConnection(mysqlSettings);
-var multistatementConnection = mysql.createConnection(
-  multistatementsMysqlSettings
-);
-
-singlestatementConnection.connect();
-multistatementConnection.connect();
-
-var app = express();
+const app = express();
 
 // The device ID in the database, and the device ID from the house can be
 // entirely different. Hence there should be a physical device ID to database
 // device ID mapping.
-// TODO: variable caching is really bad. The devices should also be cached in
-//   redis.
-var devicesMapping = [];
+// TODO: variable-only caching is really bad. The devices should also be cached
+//   in Redis.
+const devicesMapping = [];
 function getDevice(id, series, callback) {
   var device = devicesMapping[[id, series].join(':')];
 
   // This means that the device was never cached, and hence we have to query the
   // database.
   if (!device) {
-    return singlestatementConnection.query(
+    return mysqlConnection.query(
       'SELECT * FROM devices WHERE real_device_id = ? AND type = ?;',
       [id, series],
       function (err, result) {
@@ -49,11 +41,7 @@ function getDevice(id, series, callback) {
         // This means that the device is not even in the database. Insert it,
         // and get the row from the database.
         if (!result || !result.length) {
-          // TODO: instead of returning null, just insert the device into the
-          //   database.
-          return singlestatementConnection.query(
-            // TODO: check to see whether the insertion and retrieval can be
-            //   done in a single statement.
+          return mysqlConnection.query(
             'INSERT INTO devices (real_device_id, type) VALUES (?, ?)',
             [id, series],
             function (err) {
@@ -77,7 +65,33 @@ function getDevice(id, series, callback) {
 app.use(bodyParser.json());
 
 app.get('/data/:series', function (req, res, next) {
+  req.param.series.
+  mysqlConnection.query(
+    'SELECT * FROM data_points WHERE '
+  )
   res.send(501, 'Coming soon.');
+});
+
+app.get('/series', function (req, res, next) {
+  mysqlConnection.query(
+    'SELECT DISTINCT(type) as type FROM devices',
+    function (err, result) {
+      if (err) { return next(err); }
+      res.json(result.map(function (device) {
+        return device.type
+      }));
+    }
+  )
+});
+
+app.get('/devices/', function (req, res, next) {
+
+});
+
+app.get('/devices/:series', function (req, res, next) {
+  mysqlConnection.query(
+    'SELECT * FROM devices WHERE type = ?'
+  )
 });
 
 app.post('/data', function (req, res, next) {
@@ -123,7 +137,7 @@ app.post('/data', function (req, res, next) {
 
           // Get the most recently inserted data point.
           function (device, callback) {
-            singlestatementConnection.query(
+            mysqlConnection.query(
               'SELECT * FROM data_points WHERE device_id = ? \
               ORDER BY time DESC LIMIT 1',
               [device.id],
@@ -138,7 +152,7 @@ app.post('/data', function (req, res, next) {
           // Finally, insert the data point that the client provided, as well as
           // update the running total.
           function (device, row, callback) {
-            var insertionQuery =
+            const insertionQuery =
               mysql.format(
                 'INSERT INTO data_points ( \
                   device_id, \
@@ -157,7 +171,7 @@ app.post('/data', function (req, res, next) {
               );
 
             // Now do the actual insertion.
-            singlestatementConnection.query(insertionQuery,
+            mysqlConnection.query(insertionQuery,
               function (err, result) {
                 // TODO: this shouldn't crash. Just gracefully move on.
                 if (err) { return callback(err); }
@@ -180,7 +194,7 @@ app.post('/data', function (req, res, next) {
       // Iterate through each items and insert/update rows for the different
       // granularities.
 
-      var granularities = [
+      const granularities = [
         { name: 'data_points_1m', interval: 1000 * 60 },
         { name: 'data_points_1h', interval: 1000 * 60 * 60 },
         { name: 'data_points_1d', interval: 1000 * 60 * 60 * 24 },
@@ -194,7 +208,7 @@ app.post('/data', function (req, res, next) {
         // Waterfall through the different granularities.
         async.each(granularities, function (granularity, callback) {
           // Get the time that is rounded to the nearest minute.
-          var roundedDownTime =
+          const roundedDownTime =
             new Date(
               Math.floor(
                 new Date(item.time).getTime() / granularity.interval
@@ -209,7 +223,7 @@ app.post('/data', function (req, res, next) {
 
             // Query for the most recent entry.
             function (device, callback) {
-              singlestatementConnection.query(
+              mysqlConnection.query(
                 'SELECT * FROM ' + granularity.name + ' \
                 WHERE device_id = ? AND time >= ? ORDER BY time DESC LIMIT 1',
                 [ device.id, roundedDownTime ],
@@ -225,7 +239,7 @@ app.post('/data', function (req, res, next) {
               // Since nothing came up, then it means we should insert a new
               // row.
               if (!result || !result.length) {
-                return singlestatementConnection.query(
+                return mysqlConnection.query(
                   'INSERT INTO ' + granularity.name + ' \
                   (device_id, mean, sum, min, max, time) \
                   VALUES (?, ?, ?, ?, ?, ?)',
@@ -246,13 +260,13 @@ app.post('/data', function (req, res, next) {
 
               // Something came up. We should then run some computation.
 
-              var row = result[0];
-              var mean = (row.mean + item.value) / 2;
-              var sum = row.sum + item.value;
-              var min = item.value < row.min ? item.value : row.min;
-              var max = item.value > row.max ? item.value : row.max;
+              const row = result[0];
+              const mean = (row.mean + item.value) / 2;
+              const sum = row.sum + item.value;
+              const min = item.value < row.min ? item.value : row.min;
+              const max = item.value > row.max ? item.value : row.max;
 
-              singlestatementConnection.query(
+              mysqlConnection.query(
                 'UPDATE ' + granularity.name + ' \
                 SET mean = ?, sum = ?, min = ?, max = ? \
                 WHERE id = ?',
@@ -265,79 +279,6 @@ app.post('/data', function (req, res, next) {
             }
           ], callback);
         }, callback);
-
-        // async.waterfall([
-        //   // The one minute granularity
-        //   function (callback) {
-        //     async.waterfall([
-        //       function (callback) {
-        //         // Get the device that is associated with the item in question.
-        //         getDevice(item.device_id, item.series, callback);
-        //       },
-
-        //       // This is where the insertion/update happens.
-        //       function (device, callback) {
-        //         // Get a time that is rounded to the nearest minute.
-        //         var coefficient = 1000 * 60;
-        //         var roundedDownTime =
-        //           new Date(
-        //             Math.floor(
-        //               new Date(item.time).getTime() / coefficient
-        //             ) * coefficient
-        //           );
-
-        //         // Query the most recent per-minute entry.
-        //         singlestatementConnection.query(
-        //           'SELECT * FROM data_points_1m WHERE device_id = ? AND \
-        //           time >= ? ORDER BY time DESC LIMIT 1',
-        //           [ device.id, roundedDownTime ],
-        //           function (err, result) {
-        //             if (err) { return callback(err); }
-
-        //             // Since nothing came up, then just insert a new row.
-        //             if (!result || !result.length) {
-        //               return singlestatementConnection.query(
-        //                 'INSERT INTO data_points_1m \
-        //                 (device_id, mean, sum, min, max, time) \
-        //                 VALUES (?, ?, ?, ?, ?, ?)',
-        //                 [
-        //                   device.id,
-        //                   item.value,
-        //                   item.value,
-        //                   item.value,
-        //                   item.value,
-        //                   roundedDownTime
-        //                 ],
-        //                 function (err, result) {
-        //                   if (err) { return callback(err); }
-        //                   callback(null);
-        //                 }
-        //               );
-        //             }
-
-        //             // Something came up. So let's run some computation.
-        //             var row = result[0];
-        //             var mean = (row.mean + item.value) / 2;
-        //             var sum = row.sum + item.value;
-        //             var min = item.value < row.min ? item.value : row.min;
-        //             var max = item.value > row.max ? item.value : row.max;
-
-        //             singlestatementConnection.query(
-        //               'UPDATE data_points_1m \
-        //               SET mean = ?, sum = ?, min = ?, max = ? \
-        //               WHERE id = ?',
-        //               [ mean, sum, min, max, row.id ],
-        //               function (err, result) {
-        //                 if (err) { return callback(err); }
-        //                 callback(null);
-        //               }
-        //             );
-        //           }
-        //         );
-        //       }
-        //     ], callback);
-        //   }
-        // ], callback);
       }, callback);
     }
 
