@@ -84,13 +84,32 @@ app.get('/series', function (req, res, next) {
   )
 });
 
-app.get('/devices/', function (req, res, next) {
-
+app.get('/devices', function (req, res, next) {
+  mysqlConnection.query(
+    'SELECT real_device_id as id, type, name FROM devices',
+    function (err, result) {
+      if (err) { return next(err); }
+      var grouped = _.groupBy(result, function (device) {
+        return device.type;
+      });
+      for (var key in grouped) {
+        grouped[key] = grouped[key].map(function (device) {
+          return _.pick(device, 'id', 'name');
+        });
+      }
+      res.json(grouped);
+    }
+  );
 });
 
 app.get('/devices/:series', function (req, res, next) {
   mysqlConnection.query(
-    'SELECT * FROM devices WHERE type = ?'
+    'SELECT real_device_id as id, name FROM devices WHERE type = ?',
+    [req.params.series],
+    function (err, result) {
+      if (err) { return next(err); }
+      res.json(result);
+    }
   )
 });
 
