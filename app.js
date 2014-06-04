@@ -10,6 +10,13 @@ const bodyParser = require('body-parser');
 // TODO: all client errors should be responded using a 4xx error status code.
 //   hence, avoid calling the `next` callback.
 
+// TODO: consder having multiple MySQL users, each with their own permissions,
+//   e.g. some can only read, while others can read and write.
+//   
+//   From the looks of it, however, there should absolutely be no need of any
+//   users that are granted the ability to delete databases, drop tables, create
+//   new tables, etc. Only write to tables, and read from tables.
+
 const mysqlSettings = _.pick(
   settings.get('mysql'),
   [ 'host', 'user', 'password', 'database' ]
@@ -23,8 +30,9 @@ const app = express();
 // The device ID in the database, and the device ID from the house can be
 // entirely different. Hence there should be a physical device ID to database
 // device ID mapping.
-// TODO: variable-only caching is really bad. The devices should also be cached
-//   in Redis.
+// TODO: variable-only caching only lasts as long as the DBMS server is alive.
+//   Perhaps store the mapping in a file, or a caching server such as Redis.
+// TODO: perhaps unit/integration test this.
 const devicesMapping = [];
 function getDevice(id, series, callback) {
   var device = devicesMapping[[id, series].join(':')];
@@ -64,14 +72,178 @@ function getDevice(id, series, callback) {
 
 app.use(bodyParser.json());
 
-app.get('/data/:series', function (req, res, next) {
-  req.param.series.
-  mysqlConnection.query(
-    'SELECT * FROM data_points WHERE '
-  )
-  res.send(501, 'Coming soon.');
+// TODO: this should really be its own server.
+app.get('/', function (req, res, next) {
+  res.send(500, 'Coming soon.');
 });
 
+app.get('/data/:series', function (req, res, next) {
+
+  // TODO: establish a limit as to how much data we are going to be retrieving.
+
+  // This route will perform the following MySQL query:
+  //
+  //     SELECT
+  //       <func>(<column associated with func>) AS
+  //         <column associated with func>,
+  //       FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(time) / <interval>) * <interval>)
+  //         AS time
+  //       FROM data_points<specific granularity, if any>
+  //       <WHERE devices to query>
+  //       GROUP BY FLOOR(UNIX_TIMESTAMP(time) / <interval>) * <interval>
+  //
+  // Where <WHERE devices to query> represents which devices should have its
+  // values aggregated. When the client does not specify a list of devices to
+  // query, then the WHERE clause will simply query all devices of the series
+  // in question. Otherwise, it will query the specified device, or, if the
+  // cient specified, filter out those devices.
+  //
+  // This is the case when the client did not specify any particular queries:
+  //
+  //     device_id IN (
+  //       SELECT id FROM devices WHERE type = <series>
+  //     )
+  //
+  // This is the case when the client specified which devices it wants queried:
+  //
+  //     device_id IN (
+  //       SELECT id FROM devices WHERE type = <series> AND
+  //         real_device_id IN (<list of devices>)
+  //     )
+  //
+  // This is the case when the client specified which devices it wants filtered
+  // out:
+  //
+  //     device_id IN (
+  //       SELECT id FROM devices WHERE type = <series> AND
+  //         real_device_id NOT IN (<list of devices>)
+  //     )
+  //
+  // The list of query parameters that will affect the above query are:
+  //
+  //     func. Optional. Can be either of mean, min, max sum. Defaults to mean,
+  //       when omitted.
+  //     interval. Optional. Can be either of x, xm, xh, xd, xw, xmo, xy, where
+  //       x is a decimal-formatted integer. Defaults to just x, when omitted.
+  //     devices. Optional. URL-encoded JSON string with the properties `ids`,
+  //       and `exclude`. `ids` is an array of device IDs, and `exclude` is a
+  //       boolean, to determine whether or not `ids` will exclude the list of
+  //       specified devices. When omitted, it will be assumed that the client
+  //       intends to have all devices in the series 
+
+  const granularityIntervals = {
+    s: 1,
+    m: 60,
+    h: 60 * 60,
+    d: 60 * 60 * 24,
+    w: 60 * 60 * 24 * 7,
+    mo: 60 * 60 * 24 * 30,
+    y: 60 * 60 * 24 * 365
+  };
+
+  // Before we start parsing, we need to validate all inputs.
+
+  if (req.query.interval && !/^d+(m|h|d|w|mo|y)?/.test(req.query.interval)) {
+    return res.send(400, 'Interval query invalid.');
+  }
+
+  // First thing's first: get the aggregate function. We'll just default to the
+  // mean for the sake of it. Now, bear in mind that the aggregate function
+  // terms used by MySQL is different from what we are going to be using.
+  // In this case, 'mean' implies MySQL's `AVG`, 'min' implies `MIN`, 'max'
+  // implies `MAX`, and sum implies `SUM`. Those mappings are found in the hash
+  // below.
+
+  const mysqlFunctionMapping = {
+    mean: 'AVG',
+    min: 'MIN',
+    max: 'MAX',
+    sum: 'SUM'
+  };
+
+  const aggregateFunction = req.query.func || 'mean';
+
+  // Next, get the interval based on the user-supplied interval value. This one
+  // is multi-part.
+
+  const amount = parseInt(req.query.interval.match(/^d+/)[0]) || 1;
+  // We don't want to work around bad inputs issued by users. Just throw an
+  // error.
+  if (amount <= 0 || amount|0 !== amount) {
+    return res.send(
+      400,
+      'The interval amount should be an integer greater than 0.'
+    );
+  }
+
+  const granularity =
+    parseInt(req.query.interval.match(/(m|h|d|w|mo|y)/)) || 's';
+
+  const interval = granularityIntervals[granularity] * amount;
+
+  // Now, get the table name.
+
+  const tableName =
+    'data_points' + (granularity !== 's' ? '_1' + granularity : '');
+
+  // Next, the per-device query.
+
+  var perDevice;
+  try {
+    perDevice = req.query.devices ?
+      JSON.parse(req.query.devices) : { all: true };
+    if (!perDevice.all && !_.isArray(perDevice.devices)) {
+      return res.send(400, 'The devices list is not valid.');
+    }
+  } catch (e) {
+    return res.send(400, 'The devices list is not valid.')
+  }
+
+
+  // Afterwards, get the series name
+
+  const seriesName = req.params.series;
+
+  // Just the preliminary
+
+  // Now, time to generate the SQL.
+
+  var whereDevicesQuery;
+  if (perDevice.all) {
+    whereDevicesQuery = '';
+  } else {
+    var devicesList = mysql.format(Device.devices.map(function () {
+      return '?'
+    }).join(','), perDevice.list);
+    var andin = perDevice.exclude ? 'NOT IN' : 'IN';
+    whereDevicesQuery = andin + ' ' + devicesList;
+  }
+
+  // TODO: This may be vulnerable to SQL injection attacks.
+  const sql = mysql.format(
+    util.format(
+      'SELECT \
+            %s(%s) AS %s, \
+            FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(time) / ?) * ?) AS time \
+          FROM %s \
+          WHERE \
+            device_id IN ( \
+              SELECT id FROM devices WHERE type = ? %s \
+            ) \
+          GROUP BY FLOOR(UNIX_TIMESTAMP(time) / ?) * ?',
+      mysqlFunctionMapping[aggregateFunction],
+      aggregateFunction,
+      aggregateFunction,
+      tableName,
+      whereDevicesQuery
+    ),
+    [ interval, interval, seriesName, interval, interval ]
+  );
+
+  res.send(501, 'Still working on it, but here\'s the query so far:\n' + sql);
+});
+
+// Gets a list of all series.
 app.get('/series', function (req, res, next) {
   mysqlConnection.query(
     'SELECT DISTINCT(type) as type FROM devices',
@@ -84,6 +256,7 @@ app.get('/series', function (req, res, next) {
   )
 });
 
+// Gets a list of all devices.
 app.get('/devices', function (req, res, next) {
   mysqlConnection.query(
     'SELECT real_device_id as id, type, name FROM devices',
@@ -102,6 +275,7 @@ app.get('/devices', function (req, res, next) {
   );
 });
 
+// Get a list of all devices in specified series.
 app.get('/devices/:series', function (req, res, next) {
   mysqlConnection.query(
     'SELECT real_device_id as id, name FROM devices WHERE type = ?',
