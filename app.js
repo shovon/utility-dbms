@@ -6,6 +6,7 @@ const async = require('async');
 const util = require('util');
 const _ = require('lodash');
 const bodyParser = require('body-parser');
+const path = require('path');
 
 // TODO: all client errors should be responded using a 4xx error status code.
 //   hence, avoid calling the `next` callback.
@@ -71,11 +72,8 @@ function getDevice(id, series, callback) {
 }
 
 app.use(bodyParser.json());
-
-// TODO: this should really be its own server.
-app.get('/', function (req, res, next) {
-  res.send(500, 'Coming soon.');
-});
+// TODO: this should really be its own web server.
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/data/:series', function (req, res, next) {
 
@@ -166,10 +164,11 @@ app.get('/data/:series', function (req, res, next) {
   // Next, get the interval based on the user-supplied interval value. This one
   // is multi-part.
 
-  const amount = parseInt(req.query.interval.match(/^d+/)[0]) || 1;
+  const amount =
+    (req.query.interval && parseInt(req.query.interval.match(/^d+/)[0])) || 1;
   // We don't want to work around bad inputs issued by users. Just throw an
   // error.
-  if (amount <= 0 || amount|0 !== amount) {
+  if (amount <= 0 || (amount|0) !== amount) {
     return res.send(
       400,
       'The interval amount should be an integer greater than 0.'
@@ -177,7 +176,7 @@ app.get('/data/:series', function (req, res, next) {
   }
 
   const granularity =
-    parseInt(req.query.interval.match(/(m|h|d|w|mo|y)/)) || 's';
+    req.query.interval && req.query.interval.match(/(m|h|d|w|mo|y)/) || 's';
 
   const interval = granularityIntervals[granularity] * amount;
 

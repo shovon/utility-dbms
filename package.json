@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "develop": "NODE_ENV=development nodemon app.js"
+    "develop": "NODE_ENV=development nodemon -i public app.js"
   },
   "dependencies": {
     "mysql": "^2.3.2",
