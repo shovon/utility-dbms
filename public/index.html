@@ -1,0 +1,35 @@
+<!doctype html>
+
+<html lang='en'>
+  <head>
+    <meta charset='utf-8'>
+    <title>Database Management System Dashboard</title>
+    <link rel='stylesheet' href='/bootstrap/css/bootstrap.css'>
+    <link rel='stylesheet' href='/css/style.css'>
+  </head>
+  <body>
+    <div id='devices-list-view'></div>
+    <script id='devices-list' type='text/underscore'>
+      <input class='units-textbox' type='text' value='1'>
+      <select class='granularity-selector'>
+        <option value='none'>None</option>
+        <option value='m'>Per minute</option>
+        <option value='h'>Hourly</option>
+        <option value='w'>Weekly</option>
+        <option value='mo'>Monthly</option>
+        <option value='d'>Daily</option>
+        <option value='y'>Yearly</option>
+      </select>
+      <input class='exclude-checkbox' type='checkbox'> Exclude
+      <select class='series-switcher'></select>
+      <button class='select-all btn btn-primary'>Select all</button>
+      <button class='query btn btn-primary'>Send query</button>
+      <div class='devices-box'></div>
+    </script>
+    <script src='/js/jquery-2.1.1.js'></script>
+    <script src='/bootstrap/js/bootstrap.js'></script>
+    <script src='/js/underscore.js'></script>
+    <script src='/js/backbone.js'></script>
+    <script src='/js/script.js'></script>
+  </body>
+</html>
