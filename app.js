@@ -191,13 +191,12 @@ app.get('/data/:series', function (req, res, next) {
   try {
     perDevice = req.query.devices ?
       JSON.parse(req.query.devices) : { all: true };
-    if (!perDevice.all && !_.isArray(perDevice.devices)) {
+    if (!perDevice.all && !_.isArray(perDevice.ids)) {
       return res.send(400, 'The devices list is not valid.');
     }
   } catch (e) {
     return res.send(400, 'The devices list is not valid.')
   }
-
 
   // Afterwards, get the series name
 
@@ -211,11 +210,11 @@ app.get('/data/:series', function (req, res, next) {
   if (perDevice.all) {
     whereDevicesQuery = '';
   } else {
-    var devicesList = mysql.format(Device.devices.map(function () {
+    var devicesList = mysql.format(perDevice.ids.map(function () {
       return '?'
-    }).join(','), perDevice.list);
+    }).join(','), perDevice.ids);
     var andin = perDevice.exclude ? 'NOT IN' : 'IN';
-    whereDevicesQuery = andin + ' ' + devicesList;
+    whereDevicesQuery = 'AND real_device_id ' + andin + ' ' + devicesList;
   }
 
   // TODO: This may be vulnerable to SQL injection attacks.
@@ -231,7 +230,7 @@ app.get('/data/:series', function (req, res, next) {
             ) \
           GROUP BY FLOOR(UNIX_TIMESTAMP(time) / ?) * ?',
       mysqlFunctionMapping[aggregateFunction],
-      aggregateFunction,
+      granularity === 's' ? 'value' : aggregateFunction,
       aggregateFunction,
       tableName,
       whereDevicesQuery

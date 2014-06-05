@@ -1,4 +1,5 @@
 var DevicesListView = Backbone.View.extend({
+
   initialize: function () {
     this.$el.html(_.template($('#devices-list').html()));
     
@@ -13,12 +14,29 @@ var DevicesListView = Backbone.View.extend({
 
     this.$queryButton = this.$el.find('.query');
     this.$queryButton.click(function () {
+      var checked = self.$devicesBox.find('input[type="checkbox"]:checked');
+      console.log(self.$devicesBox[0]);
+      var data = {};
+      console.log(self.$devicesBox.find('input[type="checkbox"]').length);
+      console.log(checked.length);
+      if (self.$devicesBox.find('input[type="checkbox"]').length != checked.length) {
+        // TODO: add a way to check whether or not the user intends to exclude
+        //   the specified devices.
+        data.devices = JSON.stringify({
+          ids: $.makeArray(checked.map(function (i, box) {
+            return $(box).attr('data-device-id');
+          }))
+        })
+      }
+      console.log(data);
       $.ajax({
-        url: '/data/' + self.$seriesSwitcher.val()
+        url: '/data/' + self.$seriesSwitcher.val(),
+        type: 'GET',
+        data: data
       }).done(function (data) {
         throw new Error('Shouldn\'t be here.');
       }).fail(function (xhr, status) {
-        console.log(xhr);
+        console.log(xhr.responseText);
       })
     });
 
@@ -46,6 +64,7 @@ var DevicesListView = Backbone.View.extend({
         var checkbox = $(document.createElement('input'));
         checkbox.attr('type', 'checkbox');
         checkbox.attr('checked', 'true');
+        checkbox.attr('data-device-id', device.id);
         var span = $(document.createElement('span'));
         span.html(device.id);
         checkboxContainer.append(checkbox);
