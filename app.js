@@ -141,7 +141,7 @@ app.get('/data/:series', function (req, res, next) {
 
   // Before we start parsing, we need to validate all inputs.
 
-  if (req.query.interval && !/^d+(m|h|d|w|mo|y)?/.test(req.query.interval)) {
+  if (req.query.interval && !/^\d+(m|h|d|w|mo|y)?/.test(req.query.interval)) {
     return res.send(400, 'Interval query invalid.');
   }
 
@@ -165,7 +165,7 @@ app.get('/data/:series', function (req, res, next) {
   // is multi-part.
 
   const amount =
-    (req.query.interval && parseInt(req.query.interval.match(/^d+/)[0])) || 1;
+    (req.query.interval && parseInt(req.query.interval.match(/^\d+/)[0])) || 1;
   // We don't want to work around bad inputs issued by users. Just throw an
   // error.
   if (amount <= 0 || (amount|0) !== amount) {
@@ -175,8 +175,12 @@ app.get('/data/:series', function (req, res, next) {
     );
   }
 
+  const granularityMatch =
+    (req.query.interval && req.query.interval.match(/(m|h|d|w|mo|y)/)) || null;
+
   const granularity =
-    req.query.interval && req.query.interval.match(/(m|h|d|w|mo|y)/) || 's';
+    (granularityMatch &&
+    granularityMatch[0]) || 's';
 
   const interval = granularityIntervals[granularity] * amount;
 
@@ -214,7 +218,8 @@ app.get('/data/:series', function (req, res, next) {
       return '?'
     }).join(','), perDevice.ids);
     var andin = perDevice.exclude ? 'NOT IN' : 'IN';
-    whereDevicesQuery = 'AND real_device_id ' + andin + ' ' + devicesList;
+    whereDevicesQuery =
+      'AND real_device_id ' + andin + ' (' + devicesList + ')';
   }
 
   // TODO: This may be vulnerable to SQL injection attacks.
@@ -238,7 +243,10 @@ app.get('/data/:series', function (req, res, next) {
     [ interval, interval, seriesName, interval, interval ]
   );
 
-  res.send(501, 'Still working on it, but here\'s the query so far:\n' + sql);
+  mysqlConnection.query(sql, function (err, result) {
+    if (err) { return next(err); }
+    res.send(result);
+  });
 });
 
 // Gets a list of all series.

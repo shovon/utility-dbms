@@ -12,29 +12,55 @@ var DevicesListView = Backbone.View.extend({
       self.updateDevicesList();
     });
 
+    this.$excludeCheckbox = this.$el.find('.exclude-checkbox');
+
+    this.$granularitySelector = this.$el.find('.granularity-selector');
+
+    this.$unitsTextbox = this.$el.find('.units-textbox');
+    this.$unitsTextbox.keyup(function () {
+      var $this = $(this);
+      var value = +$this.val()
+      if (isNaN(value) || value < 1) {
+        $this.val('1');
+      }
+    });
+
     this.$queryButton = this.$el.find('.query');
     this.$queryButton.click(function () {
       var checked = self.$devicesBox.find('input[type="checkbox"]:checked');
-      console.log(self.$devicesBox[0]);
       var data = {};
-      console.log(self.$devicesBox.find('input[type="checkbox"]').length);
-      console.log(checked.length);
       if (self.$devicesBox.find('input[type="checkbox"]').length != checked.length) {
-        // TODO: add a way to check whether or not the user intends to exclude
-        //   the specified devices.
-        data.devices = JSON.stringify({
+        var devices = {
           ids: $.makeArray(checked.map(function (i, box) {
             return $(box).attr('data-device-id');
           }))
-        })
+        };
+
+        if (self.$excludeCheckbox.is(':checked')) {
+          devices.exclude = true;
+        }
+
+        data.devices = JSON.stringify(devices);
       }
-      console.log(data);
+
+      if (
+        +self.$unitsTextbox.val() !== 1 ||
+        self.$granularitySelector.val() !== 'none'
+      ) {
+        data.interval =
+          +self.$unitsTextbox.val();
+        if (self.$granularitySelector.val() !== 'none') {
+          data.interval += self.$granularitySelector.val();
+        }
+        console.log(data.interval);
+      }
+
       $.ajax({
         url: '/data/' + self.$seriesSwitcher.val(),
         type: 'GET',
         data: data
       }).done(function (data) {
-        throw new Error('Shouldn\'t be here.');
+        console.log(data);
       }).fail(function (xhr, status) {
         console.log(xhr.responseText);
       })
