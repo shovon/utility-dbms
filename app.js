@@ -8,6 +8,8 @@ const _ = require('lodash');
 const bodyParser = require('body-parser');
 const path = require('path');
 
+// TODO: add password protection.
+
 // TODO: all client errors should be responded using a 4xx error status code.
 //   hence, avoid calling the `next` callback.
 
@@ -17,6 +19,10 @@ const path = require('path');
 //   From the looks of it, however, there should absolutely be no need of any
 //   users that are granted the ability to delete databases, drop tables, create
 //   new tables, etc. Only write to tables, and read from tables.
+
+// TODO: have the different series be their own tables.
+
+// TODO: write migrations for what we have now.
 
 const mysqlSettings = _.pick(
   settings.get('mysql'),
@@ -77,7 +83,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/data/:series', function (req, res, next) {
 
+  // TODO: the readings should be the sum of the values of all the devices.
+
   // TODO: establish a limit as to how much data we are going to be retrieving.
+
+  // TODO: when no interval is supplied, don't apply any aggregate functions.
+
+  // TODO: have a `from` and `to` parameters. `From` will be the earliest in
+  //   in time that the data was stored, and `to` will be latest.
 
   // This route will perform the following MySQL query:
   //
@@ -127,7 +140,9 @@ app.get('/data/:series', function (req, res, next) {
   //       and `exclude`. `ids` is an array of device IDs, and `exclude` is a
   //       boolean, to determine whether or not `ids` will exclude the list of
   //       specified devices. When omitted, it will be assumed that the client
-  //       intends to have all devices in the series 
+  //       intends to have all devices in the series
+  //     from. Optional. To be implemented
+  //     to. Optional. To be implemented
 
   const granularityIntervals = {
     s: 1,
@@ -222,20 +237,28 @@ app.get('/data/:series', function (req, res, next) {
       'AND real_device_id ' + andin + ' (' + devicesList + ')';
   }
 
-  // TODO: This may be vulnerable to SQL injection attacks.
   const sql = mysql.format(
     util.format(
       'SELECT \
             %s(%s) AS %s, \
             FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(time) / ?) * ?) AS time \
-          FROM %s \
-          WHERE \
-            device_id IN ( \
-              SELECT id FROM devices WHERE type = ? %s \
-            ) \
-          GROUP BY FLOOR(UNIX_TIMESTAMP(time) / ?) * ?',
+          FROM ( \
+            SELECT SUM(%s) AS %s, \
+            time, \
+            device_id
+            FROM %s
+            WHERE \
+              device_id IN ( \
+                SELECT id FROM devices WHERE type = ? %s \
+              ) \
+            GROUP BY device_id
+            ORDER BY time DESC
+          )
+          GROUP BY FLOOR(UNIX_TIMESTAMP(time) / ?) * ? ORDER BY time DESC',
       mysqlFunctionMapping[aggregateFunction],
       granularity === 's' ? 'value' : aggregateFunction,
+      aggregateFunction,
+      aggregateFunction,
       aggregateFunction,
       tableName,
       whereDevicesQuery
@@ -295,10 +318,6 @@ app.get('/devices/:series', function (req, res, next) {
 
 app.post('/data', function (req, res, next) {
   // TODO: accept a more compact JSON format.
-
-  // We should store the running total into the database, and expect that the
-  // client never sends running total data. It should be upto the database
-  // management system to compute the running total.
 
   // For each data point the object's body will look like:
   //
