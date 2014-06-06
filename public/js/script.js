@@ -5,6 +5,9 @@ var DevicesListView = Backbone.View.extend({
     
     var self = this;
 
+    this.$fromHourTextbox = this.$el.find('.from-hour-textbox');
+    this.$fromHourTextbox.datetimepicker();
+
     this.$devicesBox = this.$el.find('.devices-box');
 
     this.$seriesSwitcher = this.$el.find('.series-switcher');
@@ -52,7 +55,10 @@ var DevicesListView = Backbone.View.extend({
         if (self.$granularitySelector.val() !== 'none') {
           data.interval += self.$granularitySelector.val();
         }
-        console.log(data.interval);
+      }
+
+      if (/(min|max|sum)/.test(self.$aggregateFunctionSelector.val())) {
+        data.func =self.$aggregateFunctionSelector.val();
       }
 
       $.ajax({
@@ -65,6 +71,9 @@ var DevicesListView = Backbone.View.extend({
         console.log(xhr.responseText);
       })
     });
+
+    this.$aggregateFunctionSelector =
+      this.$el.find('.aggregate-function-selector');
 
     $.ajax({
       url: '/series'

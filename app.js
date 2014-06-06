@@ -8,7 +8,7 @@ const _ = require('lodash');
 const bodyParser = require('body-parser');
 const path = require('path');
 
-// TODO: add password protection.
+// TODO: add an authentication mechanism.
 
 // TODO: all client errors should be responded using a 4xx error status code.
 //   hence, avoid calling the `next` callback.
@@ -83,53 +83,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/data/:series', function (req, res, next) {
 
-  // TODO: the readings should be the sum of the values of all the devices.
-
-  // TODO: establish a limit as to how much data we are going to be retrieving.
-
   // TODO: when no interval is supplied, don't apply any aggregate functions.
 
   // TODO: have a `from` and `to` parameters. `From` will be the earliest in
   //   in time that the data was stored, and `to` will be latest.
 
-  // This route will perform the following MySQL query:
-  //
-  //     SELECT
-  //       <func>(<column associated with func>) AS
-  //         <column associated with func>,
-  //       FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(time) / <interval>) * <interval>)
-  //         AS time
-  //       FROM data_points<specific granularity, if any>
-  //       <WHERE devices to query>
-  //       GROUP BY FLOOR(UNIX_TIMESTAMP(time) / <interval>) * <interval>
-  //
-  // Where <WHERE devices to query> represents which devices should have its
-  // values aggregated. When the client does not specify a list of devices to
-  // query, then the WHERE clause will simply query all devices of the series
-  // in question. Otherwise, it will query the specified device, or, if the
-  // cient specified, filter out those devices.
-  //
-  // This is the case when the client did not specify any particular queries:
-  //
-  //     device_id IN (
-  //       SELECT id FROM devices WHERE type = <series>
-  //     )
-  //
-  // This is the case when the client specified which devices it wants queried:
-  //
-  //     device_id IN (
-  //       SELECT id FROM devices WHERE type = <series> AND
-  //         real_device_id IN (<list of devices>)
-  //     )
-  //
-  // This is the case when the client specified which devices it wants filtered
-  // out:
-  //
-  //     device_id IN (
-  //       SELECT id FROM devices WHERE type = <series> AND
-  //         real_device_id NOT IN (<list of devices>)
-  //     )
-  //
+  // TODO: should the data be retrieved in the SQL style? That is, whatever
+  //   'column' the user requests (that is, either of mean, sum, min, or max),
+  //   that's the column name that is going to be returned? Or should it be
+  //   just returned as 'value'?
+
   // The list of query parameters that will affect the above query are:
   //
   //     func. Optional. Can be either of mean, min, max sum. Defaults to mean,
@@ -141,8 +104,8 @@ app.get('/data/:series', function (req, res, next) {
   //       boolean, to determine whether or not `ids` will exclude the list of
   //       specified devices. When omitted, it will be assumed that the client
   //       intends to have all devices in the series
-  //     from. Optional. To be implemented
-  //     to. Optional. To be implemented
+  //     from. Optional. an ISO 8601 string
+  //     to. Optional. an ISO 8601 string
 
   const granularityIntervals = {
     s: 1,
@@ -156,7 +119,7 @@ app.get('/data/:series', function (req, res, next) {
 
   // Before we start parsing, we need to validate all inputs.
 
-  if (req.query.interval && !/^\d+(m|h|d|w|mo|y)?/.test(req.query.interval)) {
+  if (req.query.interval && !/^\d+((m|h|d|w|y)o?)?$/.test(req.query.interval)) {
     return res.send(400, 'Interval query invalid.');
   }
 
@@ -174,6 +137,7 @@ app.get('/data/:series', function (req, res, next) {
     sum: 'SUM'
   };
 
+  // TODO: throw an error for unsupported aggregate functions.
   const aggregateFunction = req.query.func || 'mean';
 
   // Next, get the interval based on the user-supplied interval value. This one
@@ -191,7 +155,7 @@ app.get('/data/:series', function (req, res, next) {
   }
 
   const granularityMatch =
-    (req.query.interval && req.query.interval.match(/(m|h|d|w|mo|y)/)) || null;
+    (req.query.interval && req.query.interval.match(/(m|h|d|w|y)o?$/)) || null;
 
   const granularity =
     (granularityMatch &&
@@ -221,8 +185,6 @@ app.get('/data/:series', function (req, res, next) {
 
   const seriesName = req.params.series;
 
-  // Just the preliminary
-
   // Now, time to generate the SQL.
 
   var whereDevicesQuery;
@@ -237,31 +199,51 @@ app.get('/data/:series', function (req, res, next) {
       'AND real_device_id ' + andin + ' (' + devicesList + ')';
   }
 
+  var timeWindow = '';
+  if (req.query.from || req.query.to) {
+    timeWindow += 'AND ';
+    var values = [];
+    if (req.query.from) {
+      timeWindow += 'time > ? '
+      values.push(req.query.from);
+    }
+    if (req.query.to) {
+      if (req.query.from) {
+        timeWindow += 'AND '
+      }
+      timeWindow += 'time < ? '
+      values.push(req.query.to);
+    }
+    timeWindow = mysql.format(timeWindow, values);
+  }
+
   const sql = mysql.format(
     util.format(
-      'SELECT \
-            %s(%s) AS %s, \
-            FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(time) / ?) * ?) AS time \
-          FROM ( \
-            SELECT SUM(%s) AS %s, \
-            time, \
-            device_id
-            FROM %s
-            WHERE \
-              device_id IN ( \
-                SELECT id FROM devices WHERE type = ? %s \
-              ) \
-            GROUP BY device_id
-            ORDER BY time DESC
-          )
-          GROUP BY FLOOR(UNIX_TIMESTAMP(time) / ?) * ? ORDER BY time DESC',
+      'SELECT\n \
+          %s(%s) AS %s,\n \
+          FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(time) / ?) * ?) AS time\n \
+        FROM (\n \
+          SELECT SUM(%s) AS %s,\n \
+          time,\n \
+          device_id\n \
+          FROM %s\n \
+          WHERE\n \
+            device_id IN (\n \
+              SELECT id FROM devices WHERE type = ? %s\n \
+            )\n \
+            %s \
+          GROUP BY device_id, time\n \
+          ORDER BY time DESC\n \
+        )\n AS summed\n \
+        GROUP BY FLOOR(UNIX_TIMESTAMP(time) / ?) * ? ORDER BY time DESC',
       mysqlFunctionMapping[aggregateFunction],
       granularity === 's' ? 'value' : aggregateFunction,
       aggregateFunction,
-      aggregateFunction,
-      aggregateFunction,
+      granularity === 's' ? 'value' : aggregateFunction,
+      granularity === 's' ? 'value' : aggregateFunction,
       tableName,
-      whereDevicesQuery
+      whereDevicesQuery,
+      timeWindow
     ),
     [ interval, interval, seriesName, interval, interval ]
   );
