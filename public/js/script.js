@@ -96,14 +96,12 @@ var DevicesListView = Backbone.View.extend({
       self.$devicesBox.html('');
       data.forEach(function (device) {
         var checkboxContainer = $(document.createElement('div'));
-        var checkbox = $(document.createElement('input'));
-        checkbox.attr('type', 'checkbox');
-        checkbox.attr('checked', 'true');
-        checkbox.attr('data-device-id', device.id);
-        var span = $(document.createElement('span'));
-        span.html(device.id);
-        checkboxContainer.append(checkbox);
-        checkboxContainer.append(span);
+        checkboxContainer.html(
+          _.template($('#device-checkbox').html(), {
+            id: device.id,
+            name: device.name || device.id
+          })
+        );
         self.$devicesBox.append(checkboxContainer);
       });
     });

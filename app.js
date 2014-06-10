@@ -7,6 +7,22 @@ const util = require('util');
 const _ = require('lodash');
 const bodyParser = require('body-parser');
 const path = require('path');
+const redis = require('redis');
+const fs = require('fs');
+const mkdirp = require('mkdirp');
+
+const dbdir = path.join(__dirname, '.db');
+const lockfile = path.join(dbdir, 'lock');
+
+mkdirp.sync('./.db');
+
+fs.writeFileSync(lockfile);
+
+process.on('SIGINT', function () {
+  try {
+    fs.unlinkSync(lockfile);
+  } catch (e) {}
+});
 
 // TODO: add an authentication mechanism.
 
@@ -300,6 +316,11 @@ app.get('/devices/:series', function (req, res, next) {
 
 app.post('/data', function (req, res, next) {
   // TODO: accept a more compact JSON format.
+
+  // TODO: all series should be stored into a separate database, and all
+  //   devices' `type` column should be an integer, representing the unique
+  //   ID of a row, of a given series. This way, we should be able to specify
+  //   metadata about a time series.
 
   // For each data point the object's body will look like:
   //
