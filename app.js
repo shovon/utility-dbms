@@ -98,6 +98,18 @@ function restrictRead(req, res, next) {
     return next(new Error('Not yet implemented'));
     if (err) { return next(err); }
     if (!resp) { return res.send(403, 'Session does not exist.'); }
+    users.find({ username: resp.id }, function (err, docs) {
+      if (err) { return next(err); }
+      if (!docs.length) {
+        return rs.killsoid({ app: rsapp, id: resp.id }, function (err, resp) {
+          if (err) { return next(err); }
+          next(new Error('User with username not found'));
+        });
+      }
+      if (docs[0].role !== 'r' && docs[0].role !== 'b') {
+        return res.send(403, 'User is not allowed to read from here.');
+      }
+    });
   });
 }
 
@@ -120,7 +132,7 @@ function restrictWrite(req, res, next) {
         });
       }
       if (docs[0].role !== 'w' && docs[0].role !== 'b') {
-        return res.send(403, 'User is not allowed to read from here.');
+        return res.send(403, 'User is not allowed to write to here.');
       }
       next();
     })
