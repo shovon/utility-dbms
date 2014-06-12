@@ -1,64 +1,61 @@
 const prompt = require('sync-prompt').prompt;
-const levelup = require('levelup');
 const bcrypt = require('bcrypt');
+const Datastore = require('nedb');
 
-const UNMATCHING_PASSWORD_MESSAGE = 'Root password does not match.';
+const users = new Datastore({ filename: './.db/users', autoload: true });
 
-const leveldb = levelup('./.db');
+console.log('You are about to create a new user.');
+console.log();
 
-const rootpassword = prompt.hidden('Enter root password: ');
+const username = prompt('Enter username: ');
+var password;
+var passwordRepeat;
 
-leveldb.get('users:root', function (err, value) {
-  if (err) {
-    console.error(err);
-    process.exit(1);
-    return;
+while (!password || password.length < 6 || password !== passwordRepeat) {
+  password = prompt.hidden('Enter new password  : ');
+  if (password.length < 6) {
+    console.log('Password must be at least 6 characters long.');
+    continue;
   }
-  if (!value) {
-    console.error(UNMATCHING_PASSWORD_MESSAGE);
-    process.exit(1);
-    return;
+  passwordRepeat = prompt.hidden('Enter password again : ');
+  if (password !== passwordRepeat) {
+    console.log('The passwords do not match.');
   }
+}
 
-  var result = bcrypt.compareSync(rootpassword, value.hash);
-  if (!result) {
-    console.error(UNMATCHING_PASSWORD_MESSAGE);
-    process.exit(1);
-    return;
-  }
+var role = '';
+const roleRegex = /(r|w|b)/;
 
-  const username = prompt('Enter username: ');
-  var password;
-  var passwordRepeat;
-
-  while (!password || password.length < 6 || password !== passwordRepeat) {
-    password = prompt.hidden('Enter root password  : ');
-    if (password.length < 6) {
-      console.log('Password must be at least 6 characters long.');
-      continue;
-    }
-    passwordRepeat = prompt.hidden('Enter password again : ');
-    if (password !== passwordRepeat) {
-      console.log('The passwords do not match.');
-    }
-  }
-
-  var role = '';
-
-  while (/(r|w|a)/.test(role)) {
-    role = prompt(
-      'Would you like your user to have the role of a(n)\n\
+while (!roleRegex.test(role)) {
+  role = prompt(
+    'Would you like your user to have the role of a\n\
 \n\
-1) reader\n\
-2) writer\n\
-3) admin\n\
+r) reader\n\
+w) writer\n\
+b) both\n\
 \n\
-Pick either options 1, 2, or 3: '
-    )
+Pick either options r, w, or b: '
+  )
+  if (!roleRegex.test(role)) {
+    console.log();
+    console.log('You must pick either r, w, or b');
+    console.log();
   }
+}
 
-  const salt = bcrypt.genSaltSync();
-  const hash = bcrypt.hashSync(password, salt);
+const salt = bcrypt.genSaltSync();
+const hash = bcrypt.hashSync(password, salt);
 
-  leveldb.put(['users',username].join(':'), { hash: hash, role: role })
-});
+users.update(
+  { username: username },
+  { username: username, hash: hash, role: role },
+  { upsert: true },
+  function (err, result) {
+    if (err) {
+      console.error(err);
+      process.exit(1);
+      return;
+    }
+    console.log('User updated.');
+  }
+)

@@ -10,18 +10,17 @@ const path = require('path');
 const redis = require('redis');
 const fs = require('fs');
 const mkdirp = require('mkdirp');
+const Datastore = require('nedb');
+const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 
-const dbdir = path.join(__dirname, '.db');
-const lockfile = path.join(dbdir, 'lock');
+// TODO: have a better logging mechanism.
 
-mkdirp.sync('./.db');
+const users = new Datastore({ filename: './.db/users', autoload: true });
+const redisClient = redis.createClient();
 
-fs.writeFileSync(lockfile);
-
-process.on('SIGINT', function () {
-  try {
-    fs.unlinkSync(lockfile);
-  } catch (e) {}
+redisClient.on('error', function (err) {
+  console.error(err);
 });
 
 // TODO: add an authentication mechanism.
@@ -37,8 +36,6 @@ process.on('SIGINT', function () {
 //   new tables, etc. Only write to tables, and read from tables.
 
 // TODO: have the different series be their own tables.
-
-// TODO: write migrations for what we have now.
 
 const mysqlSettings = _.pick(
   settings.get('mysql'),
@@ -317,7 +314,7 @@ app.get('/devices/:series', function (req, res, next) {
 app.post('/data', function (req, res, next) {
   // TODO: accept a more compact JSON format.
 
-  // TODO: all series should be stored into a separate database, and all
+  // TODO: all series should be stored into a separate table, and all
   //   devices' `type` column should be an integer, representing the unique
   //   ID of a row, of a given series. This way, we should be able to specify
   //   metadata about a time series.
@@ -506,6 +503,38 @@ app.post('/data', function (req, res, next) {
   ], function (err) {
     if (err) { return next(err); }
     res.send('Success.');
+  });
+});
+
+app.post('/login', function (req, res, next) {
+  users.find({ username: req.body.username }, function (err, docs) {
+    if (err) { return next(err); }
+    const doc = docs[0];
+    bcrypt.compare(req.body.password, doc.hash, function (err, result) {
+      if (err) { return next(err); }
+      const key = [doc.username, doc.hash].join(':');
+
+      // TODO: is reusing session tokens secure, or is it better to create
+      //   entirely new tokens per sessions.
+      redisClient.get(
+        key,
+        function (err, reply) {
+          if (err) { return next(err); }
+          if (reply === null) {
+            const randomToken = crypto.randomBytes(32).toString('base64');
+            return redisClient.set(key, randomToken, function (err, reply) {
+              if (err) { return next(err); }
+              res.send(randomToken);
+            });
+          }
+
+          redisClient.get(key, function (err, reply) {
+            if (err) { return next(err); }
+            res.send(reply);
+          });
+        }
+      );
+    });
   });
 });
 
