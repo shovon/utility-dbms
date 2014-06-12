@@ -13,6 +13,7 @@ const mkdirp = require('mkdirp');
 const Datastore = require('nedb');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
+const cors = require('cors');
 
 // TODO: have a better logging mechanism.
 
@@ -139,9 +140,8 @@ function restrictWrite(req, res, next) {
   });
 }
 
+app.use(cors());
 app.use(bodyParser.json());
-// TODO: this should really be its own web server.
-app.use(express.static(path.join(__dirname, 'public')));
 
 app.get(
   '/data/:series',
@@ -608,6 +608,6 @@ app.post('/login', function (req, res, next) {
   });
 });
 
-app.listen(settings.get('port'), function () {
+app.listen(settings.get('port') || 4406, function () {
   console.log('DBMS server listening on port %s', this.address().port);
 });
