@@ -51,8 +51,6 @@ const app = express();
 // The device ID in the database, and the device ID from the house can be
 // entirely different. Hence there should be a physical device ID to database
 // device ID mapping.
-// TODO: variable-only caching only lasts as long as the DBMS server is alive.
-//   Perhaps store the mapping in a file, or a caching server such as Redis.
 // TODO: perhaps unit/integration test this.
 const devicesMapping = [];
 function getDevice(id, series, callback) {
@@ -142,6 +140,8 @@ function restrictWrite(req, res, next) {
     })
   });
 }
+
+
 
 app.use(cors());
 app.use(bodyParser.json());

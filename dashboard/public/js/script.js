@@ -63,53 +63,94 @@ var DevicesListView = Backbone.View.extend({
 
       data.session = self.options.token;
 
-      $.ajax({
-        url: window.dbms + '/data/' + self.$seriesSwitcher.val(),
-        type: 'GET',
-        data: data
-      }).done(function (data) {
-        console.log(data);
-      }).fail(function (xhr, status) {
-        console.log(xhr.responseText);
-      })
+      self.options.dbmsclient.getData(
+        self.$seriesSwitcher.val(),
+        data,
+        function (err, data) {
+          if (err) {
+            return alert('Failed to get data. :(');
+          }
+          console.log(data);
+        }
+      );
+      // $.ajax({
+      //   url: window.dbms + '/data/' + self.$seriesSwitcher.val(),
+      //   type: 'GET',
+      //   data: data
+      // }).done(function (data) {
+      //   console.log(data);
+      // }).fail(function (xhr, status) {
+      //   console.log(xhr.responseText);
+      // })
     });
 
     this.$aggregateFunctionSelector =
       this.$el.find('.aggregate-function-selector');
 
-    $.ajax({
-      url: window.dbms + '/series',
-      data: { session: this.options.token }
-    }).done(function (data, status, xhr) {
-      data.forEach(function (series) {
+    this.options.dbmsclient.getSeries(function (err, series) {
+      if (err) {
+        return alert('Some error occurred. :(');
+      }
+      series.forEach(function (series) {
         var $option = $(document.createElement('option'));
         $option.attr('value', series).html(series);
         self.$seriesSwitcher.append($option);
       });
       self.updateDevicesList();
     });
+
+    // $.ajax({
+    //   url: window.dbms + '/series',
+    //   data: { session: this.options.token }
+    // }).done(function (data, status, xhr) {
+    //   data.forEach(function (series) {
+    //     var $option = $(document.createElement('option'));
+    //     $option.attr('value', series).html(series);
+    //     self.$seriesSwitcher.append($option);
+    //   });
+    //   self.updateDevicesList();
+    // });
   },
 
   updateDevicesList: function () {
     var self = this;
-    var url = '/devices/' + self.$seriesSwitcher.val();
     var data = { session: this.options.token };
-    $.ajax({
-      url: window.dbms + '/devices/' + self.$seriesSwitcher.val(),
-      data: data
-    }).success(function (data) {
-      self.$devicesBox.html('');
-      data.forEach(function (device) {
-        var checkboxContainer = $(document.createElement('div'));
-        checkboxContainer.html(
-          _.template($('#device-checkbox').html(), {
-            id: device.id,
-            name: device.name || device.id
-          })
-        );
-        self.$devicesBox.append(checkboxContainer);
-      });
-    });
+    this.options.dbmsclient.getDevicesForSeries(
+      self.$seriesSwitcher.val(),
+      function (err, devices) {
+        if (err) {
+          return alert('Some error occurred. :(');
+        }
+        self.$devicesBox.html('');
+        devices.forEach(function (device) {
+          var checkboxContainer = $(document.createElement('div'));
+          checkboxContainer.html(
+            _.template($('#device-checkbox').html(), {
+              id: device.id,
+              name: device.name || device.id
+            })
+          );
+          self.$devicesBox.append(checkboxContainer);
+        });
+      }
+    );
+
+    // $.ajax({
+    //   url: window.dbms + '/devices/' + self.$seriesSwitcher.val(),
+    //   data: data
+    // }).success(function (data) {
+    //   self.$devicesBox.html('');
+    //   data.forEach(function (device) {
+    //     var checkboxContainer = $(document.createElement('div'));
+    //     checkboxContainer.html(
+    //       _.template($('#device-checkbox').html(), {
+    //         id: device.id,
+    //         name: device.name || device.id
+    //       })
+    //     );
+    //     self.$devicesBox.append(checkboxContainer);
+    //   });
+    // });
   }
 
 });
@@ -121,25 +162,31 @@ function login(callback) {
   var $form = $dialog.find('.form');
   var $username = $form.find('.username');
   var $password = $form.find('.password');
+  var dbmsclient = null;
 
   var loggedIn = false;
 
-  var token = null;
-
   function logIn() {
-    $.ajax({
-      url: window.dbms + '/login',
-      contentType: 'application/json',
-      data: JSON.stringify({
-        username: $username.val(),
-        password: $password.val()
-      }),
-      method: 'POST'
-    }).done(function (body) {
-      token = body.token;
-      loggedIn = true;
-      $dialog.modal('hide');
+    dbmsclient = new DBMSClient($username.val(), $password.val(), window.dbms);
+    dbmsclient.login(function (err) {
+      if (!err) {
+        loggedIn = true;
+        $dialog.modal('hide');
+      }
     });
+    // $.ajax({
+    //   url: window.dbms + '/login',
+    //   contentType: 'application/json',
+    //   data: JSON.stringify({
+    //     username: $username.val(),
+    //     password: $password.val()
+    //   }),
+    //   method: 'POST'
+    // }).done(function (body) {
+    //   token = body.token;
+    //   loggedIn = true;
+    //   $dialog.modal('hide');
+    // });
   }
 
   $form.find('.username, .password').keyup(function () {
@@ -157,7 +204,7 @@ function login(callback) {
     if (!loggedIn) {
       $dialog.modal({});
     } else {
-      callback(token, $username.val(), $password.val());
+      callback(dbmsclient);
     }
   });
 
@@ -171,11 +218,9 @@ function login(callback) {
 }
 
 $(function () {
-  login(function (token, username, password) {
+  login(function (dbmsclient) {
     $('#devices-list-view').append(new DevicesListView({
-      username: username,
-      password: password,
-      token: token
+      dbmsclient: dbmsclient
     }).$el);
   });
 });

@@ -1,7 +1,8 @@
 {
   "version": "0.0.1",
   "scripts": {
-    "develop": "NODE_ENV=development nodemon -i public/ -i dashboard/ -i utilities/ app.js"
+    "develop": "NODE_ENV=development nodemon -i public/ -i dashboard/ -i utilities/ -i test/ app.js",
+    "mocha": "./node_modules/.bin/mocha"
   },
   "dependencies": {
     "mysql": "^2.3.2",
@@ -16,5 +17,8 @@
     "redis-sessions": "^0.3.4",
     "cors": "^2.3.1",
     "jade": "^1.3.1"
+  },
+  "devDependencies": {
+    "mocha": "^1.20.1"
   }
 }
