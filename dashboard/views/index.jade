@@ -1,19 +1,33 @@
-<!doctype html>
+doctype html
 
-<html lang='en'>
-  <head>
-    <meta charset='utf-8'>
-    <title>Database Management System Dashboard</title>
-    <link rel='stylesheet' href='/bootstrap/css/bootstrap.css'>
-    <link rel='stylesheet' href='/css/bootstrap-datetimepicker.min.css'>
-    <link rel='stylesheet' href='/css/style.css'>
-  </head>
-  <body>
-    <div class='container'>
-      <div id='devices-list-view'></div>
-    </div>
-    <script id='devices-list' type='text/underscore'>
+html(lang='en')
+  head
+    meta(charset='utf-8')
+    title Database Management System Dashboard
+    link(rel='stylesheet' href='/bootstrap/css/bootstrap.css')
+    link(rel='stylesheet' href='/css/style.css')
 
+  body
+    .container
+      #devices-list-view
+
+    .modal.fade#login-dialog(tabindex='-1' role='dialog' aria-labelledby='myModalLabel' aria-hidden='true')
+      .modal-dialog
+        .modal-content
+          .modal-header
+            h4.modal-title
+          .modal-body
+            from.form
+              .form-group
+                label(for='username') Username
+                input.form-control.username(type='text')
+              .form-group
+                label(for='password') Password
+                input.form-control.password(type='password')
+          .modal-footer
+            button.btn.btn-primary.log-in(type='button' data-dismiss='modal') Log In
+
+    script#devices-list(type='text/underscore').
       <div role='form'>
         <div class='row'>
           <div class='col-md-12'>
@@ -42,16 +56,7 @@
             <label for='from'>From</label>
 
             <div>
-              <div class='input-group'>
-                <input name='from' type='text' class='form-control' paceholder='Click to pick date'>
-                <span class='input-group-addon'>
-                  <span class='glyphicon glyphicon-calendar'></span>
-                </span>
-              </div>
-              <br>
-              <div class='input-group'>
-                <button class='from-clear btn btn-default'>Clear</button>
-              </div>
+              <input name='from' type='text' class='form-control' paceholder='Click to pick date'>
             </div>
 
           </div>
@@ -59,16 +64,7 @@
           <div class='col-md-6'>
             <label for='to'>To</label>
             <div>
-              <div class='input-group'>
-                <input name='from' type='text' class='form-control' paceholder='Click to pick date'>
-                <span class='input-group-addon'>
-                  <span class='glyphicon glyphicon-calendar'></span>
-                </span>
-              </div>
-              <br>
-              <div class='input-group'>
-                <button class='from-clear btn btn-default'>Clear</button>
-              </div>
+                <input name='from-control' type='text' class='form-control' paceholder='Click to pick date'>
             </div>
           </div>
         </div>
@@ -117,6 +113,7 @@
           </div>
         </div>
       </div>
+      <br>
       <div>
         <label>
           <input class='exclude-checkbox' type='checkbox'> Exclude
@@ -124,13 +121,23 @@
       </div>
       <button class='select-all btn btn-default'>Select all</button>
       <div class='devices-box'></div>
-    </script>
-    <script src='/js/jquery-2.1.1.js'></script>
-    <script src='/bootstrap/js/bootstrap.js'></script>
-    <script src='/js/underscore.js'></script>
-    <script src='/js/backbone.js'></script>
-    <script src='/js/moment-with-langs.min.js'></script>
-    <script src='/js/bootstrap-datetimepicker.min.js'></script>
-    <script src='/js/script.js'></script>
-  </body>
-</html>
+
+    script#device-checkbox(type='text/underscore').
+      <div class='checkbox'>
+        <label>
+          <input type='checkbox' data-device-id='<%- id %>' checked='true'> <%- name %>
+        </label>
+      </div>
+
+    script.
+      window.dbms = "#{dbms}";
+
+    script(src='/js/jquery-2.1.1.js')
+    script(src='/bootstrap/js/bootstrap.js')
+    script(src='/js/underscore.js')
+    script(src='/js/backbone.js')
+    script(src='/js/moment-with-langs.min.js')
+    script(src='/js/d3.js')
+    //-script(src='/js/login.js')
+    script(src='/js/dbmsclient.js')
+    script(src='/js/script.js')

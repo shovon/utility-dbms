@@ -1,6 +1,8 @@
 {
+  "version": "0.0.1",
   "scripts": {
-    "develop": "NODE_ENV=development nodemon -i public app.js"
+    "develop": "NODE_ENV=development nodemon -i public/ -i dashboard/ -i utilities/ -i test/ app.js",
+    "mocha": "./node_modules/.bin/mocha"
   },
   "dependencies": {
     "mysql": "^2.3.2",
@@ -8,6 +10,15 @@
     "nconf": "^0.6.9",
     "async": "^0.9.0",
     "lodash": "^2.4.1",
-    "body-parser": "^1.2.2"
+    "body-parser": "^1.2.2",
+    "sync-prompt": "^0.3.3-beta",
+    "bcrypt": "^0.7.8",
+    "mkdirp": "^0.5.0",
+    "redis-sessions": "^0.3.4",
+    "cors": "^2.3.1",
+    "jade": "^1.3.1"
+  },
+  "devDependencies": {
+    "mocha": "^1.20.1"
   }
 }

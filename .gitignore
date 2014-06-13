@@ -1,3 +1,4 @@
 settings/*.json
 *.log
 node_modules
+.db
