@@ -1,0 +1,142 @@
+doctype html
+
+html(lang='en')
+  head
+    meta(charset='utf-8')
+    title Database Management System Dashboard
+    link(rel='stylesheet' href='/bootstrap/css/bootstrap.css')
+    link(rel='stylesheet' href='/css/style.css')
+
+  body
+    .container
+      #devices-list-view
+
+    .modal.fade#login-dialog(tabindex='-1' role='dialog' aria-labelledby='myModalLabel' aria-hidden='true')
+      .modal-dialog
+        .modal-content
+          .modal-header
+            h4.modal-title
+          .modal-body
+            from.form
+              .form-group
+                label(for='username') Username
+                input.form-control.username(type='text')
+              .form-group
+                label(for='password') Password
+                input.form-control.password(type='password')
+          .modal-footer
+            button.btn.btn-primary.log-in(type='button' data-dismiss='modal') Log In
+
+    script#devices-list(type='text/underscore').
+      <div role='form'>
+        <div class='row'>
+          <div class='col-md-12'>
+            <div class='row'>
+              <div class='col-md-6'>
+                <label>Time Series</label>
+              </div>
+              <div class='col-md-6 text-right'>
+                <button class='query btn btn-primary'>Send query</button>
+              </div>
+            </div>
+            <div class='row'>
+              <div class='col-md-12'>
+                <div class='input-group'>
+                  <select class='form-control series-switcher'></select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <br>
+
+        <div class='row'>
+          <div class='col-md-6'>
+            <label for='from'>From</label>
+
+            <div>
+              <input name='from' type='text' class='form-control' paceholder='Click to pick date'>
+            </div>
+
+          </div>
+
+          <div class='col-md-6'>
+            <label for='to'>To</label>
+            <div>
+                <input name='from-control' type='text' class='form-control' paceholder='Click to pick date'>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <br>
+      <div class='row'>
+        <div class='col-xs-8'>
+          <div class='row'>
+            <div class='col-xs-12'>
+              <label>Granularity</label>
+            </div>
+          </div>
+          <div class='row'>
+            <div class='col-xs-6'>
+              <input class='form-control units-textbox' type='text' value='1'>
+            </div>
+            <div class='col-xs-6'>
+              <select class='form-control granularity-selector'>
+                <option value='none'>None</option>
+                <option value='m'>Per minute</option>
+                <option value='h'>Hourly</option>
+                <option value='w'>Weekly</option>
+                <option value='mo'>Monthly</option>
+                <option value='d'>Daily</option>
+                <option value='y'>Yearly</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class='col-xs-4'>
+          <div class='row'>
+            <div class='col-xs-12'>
+              <label>Aggregate Function</label>
+            </div>
+          </div>
+          <div class='row'>
+            <div class='col-xs-12'>
+              <select class='form-control aggregate-function-selector'>
+                <option value='mean'>Mean</option>
+                <option value='min'>Min</option>
+                <option value='max'>Max</option>
+                <option value='sum'>Sum</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <br>
+      <div>
+        <label>
+          <input class='exclude-checkbox' type='checkbox'> Exclude
+        </label>
+      </div>
+      <button class='select-all btn btn-default'>Select all</button>
+      <div class='devices-box'></div>
+
+    script#device-checkbox(type='text/underscore').
+      <div class='checkbox'>
+        <label>
+          <input type='checkbox' data-device-id='<%- id %>' checked='true'> <%- name %>
+        </label>
+      </div>
+
+    script.
+      window.dbms = "#{dbms}";
+
+    script(src='/js/jquery-2.1.1.js')
+    script(src='/bootstrap/js/bootstrap.js')
+    script(src='/js/underscore.js')
+    script(src='/js/backbone.js')
+    script(src='/js/moment-with-langs.min.js')
+    script(src='/js/d3.js')
+    //-script(src='/js/login.js')
+    script(src='/js/script.js')

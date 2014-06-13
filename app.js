@@ -92,11 +92,13 @@ function getDevice(id, series, callback) {
 }
 
 function restrictRead(req, res, next) {
+  if (!req.query.session) {
+    return res.send(403, 'You are not allowed here.');
+  }
   rs.get({
     app: rsapp,
     token: req.query.session
   }, function (err, resp) {
-    return next(new Error('Not yet implemented'));
     if (err) { return next(err); }
     if (!resp) { return res.send(403, 'Session does not exist.'); }
     users.find({ username: resp.id }, function (err, docs) {
@@ -110,6 +112,7 @@ function restrictRead(req, res, next) {
       if (docs[0].role !== 'r' && docs[0].role !== 'b') {
         return res.send(403, 'User is not allowed to read from here.');
       }
+      next();
     });
   });
 }
@@ -442,8 +445,8 @@ app.post(
               )
             },
 
-            // Finally, insert the data point that the client provided, as well as
-            // update the running total.
+            // Finally, insert the data point that the client provided, as well
+            // as update the running total.
             function (device, row, callback) {
               const insertionQuery =
                 mysql.format(
@@ -456,8 +459,8 @@ app.post(
                   [
                     device.id,
                     item.value,
-                    // Add the to-be inserted value to the running total, if there
-                    // was a row found. Otherwise, just add to 0.
+                    // Add the to-be inserted value to the running total, if
+                    // there was a row found. Otherwise, just add to 0.
                     row ? row.running_total + item.value : item.value,
                     item.time
                   ]
@@ -587,6 +590,9 @@ app.post('/login', function (req, res, next) {
   users.find({ username: req.body.username }, function (err, docs) {
     if (err) { return next(err); }
     const doc = docs[0];
+    if (!doc) {
+      return res.send(403, 'Username and password don\'t match');
+    }
     bcrypt.compare(req.body.password, doc.hash, function (err, result) {
       if (err) { return next(err); }
       if (!result) { res.send(403, 'Username and password don\'t match.'); }

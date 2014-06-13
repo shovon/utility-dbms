@@ -1,12 +1,12 @@
 var DevicesListView = Backbone.View.extend({
 
-  initialize: function () {
+  initialize: function (options) {
+    this.options = options;
     this.$el.html(_.template($('#devices-list').html()));
     
     var self = this;
 
     this.$fromHourTextbox = this.$el.find('.from-hour-textbox');
-    this.$fromHourTextbox.datetimepicker();
 
     this.$devicesBox = this.$el.find('.devices-box');
 
@@ -61,8 +61,10 @@ var DevicesListView = Backbone.View.extend({
         data.func =self.$aggregateFunctionSelector.val();
       }
 
+      data.session = self.options.token;
+
       $.ajax({
-        url: '/data/' + self.$seriesSwitcher.val(),
+        url: window.dbms + '/data/' + self.$seriesSwitcher.val(),
         type: 'GET',
         data: data
       }).done(function (data) {
@@ -76,7 +78,8 @@ var DevicesListView = Backbone.View.extend({
       this.$el.find('.aggregate-function-selector');
 
     $.ajax({
-      url: '/series'
+      url: window.dbms + '/series',
+      data: { session: this.options.token }
     }).done(function (data, status, xhr) {
       data.forEach(function (series) {
         var $option = $(document.createElement('option'));
@@ -90,8 +93,10 @@ var DevicesListView = Backbone.View.extend({
   updateDevicesList: function () {
     var self = this;
     var url = '/devices/' + self.$seriesSwitcher.val();
+    var data = { session: this.options.token };
     $.ajax({
-      url: '/devices/' + self.$seriesSwitcher.val()
+      url: window.dbms + '/devices/' + self.$seriesSwitcher.val(),
+      data: data
     }).success(function (data) {
       self.$devicesBox.html('');
       data.forEach(function (device) {
@@ -109,6 +114,68 @@ var DevicesListView = Backbone.View.extend({
 
 });
 
+function login(callback) {
+  callback = callback || function () {};
+
+  var $dialog = $('#login-dialog');
+  var $form = $dialog.find('.form');
+  var $username = $form.find('.username');
+  var $password = $form.find('.password');
+
+  var loggedIn = false;
+
+  var token = null;
+
+  function logIn() {
+    $.ajax({
+      url: window.dbms + '/login',
+      contentType: 'application/json',
+      data: JSON.stringify({
+        username: $username.val(),
+        password: $password.val()
+      }),
+      method: 'POST'
+    }).done(function (body) {
+      token = body.token;
+      loggedIn = true;
+      $dialog.modal('hide');
+    });
+  }
+
+  $form.find('.username, .password').keyup(function () {
+    if (event.keyCode == 13) {
+      logIn();
+    }
+  });
+  
+  $form.on('submit', function (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  });
+
+  $dialog.on('hidden.bs.modal', function (e) {
+    if (!loggedIn) {
+      $dialog.modal({});
+    } else {
+      callback(token, $username.val(), $password.val());
+    }
+  });
+
+  $dialog.find('.log-in').click(function (e) {
+    e.stopPropagation();
+    e.preventDefault();
+    logIn();
+  });
+
+  $dialog.modal({});
+}
+
 $(function () {
-  $('#devices-list-view').append(new DevicesListView().$el);
+  login(function (token, username, password) {
+    $('#devices-list-view').append(new DevicesListView({
+      username: username,
+      password: password,
+      token: token
+    }).$el);
+  });
 });
