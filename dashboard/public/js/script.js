@@ -73,15 +73,6 @@ var DevicesListView = Backbone.View.extend({
           console.log(data);
         }
       );
-      // $.ajax({
-      //   url: window.dbms + '/data/' + self.$seriesSwitcher.val(),
-      //   type: 'GET',
-      //   data: data
-      // }).done(function (data) {
-      //   console.log(data);
-      // }).fail(function (xhr, status) {
-      //   console.log(xhr.responseText);
-      // })
     });
 
     this.$aggregateFunctionSelector =
@@ -98,18 +89,6 @@ var DevicesListView = Backbone.View.extend({
       });
       self.updateDevicesList();
     });
-
-    // $.ajax({
-    //   url: window.dbms + '/series',
-    //   data: { session: this.options.token }
-    // }).done(function (data, status, xhr) {
-    //   data.forEach(function (series) {
-    //     var $option = $(document.createElement('option'));
-    //     $option.attr('value', series).html(series);
-    //     self.$seriesSwitcher.append($option);
-    //   });
-    //   self.updateDevicesList();
-    // });
   },
 
   updateDevicesList: function () {
@@ -134,23 +113,6 @@ var DevicesListView = Backbone.View.extend({
         });
       }
     );
-
-    // $.ajax({
-    //   url: window.dbms + '/devices/' + self.$seriesSwitcher.val(),
-    //   data: data
-    // }).success(function (data) {
-    //   self.$devicesBox.html('');
-    //   data.forEach(function (device) {
-    //     var checkboxContainer = $(document.createElement('div'));
-    //     checkboxContainer.html(
-    //       _.template($('#device-checkbox').html(), {
-    //         id: device.id,
-    //         name: device.name || device.id
-    //       })
-    //     );
-    //     self.$devicesBox.append(checkboxContainer);
-    //   });
-    // });
   }
 
 });
@@ -174,19 +136,6 @@ function login(callback) {
         $dialog.modal('hide');
       }
     });
-    // $.ajax({
-    //   url: window.dbms + '/login',
-    //   contentType: 'application/json',
-    //   data: JSON.stringify({
-    //     username: $username.val(),
-    //     password: $password.val()
-    //   }),
-    //   method: 'POST'
-    // }).done(function (body) {
-    //   token = body.token;
-    //   loggedIn = true;
-    //   $dialog.modal('hide');
-    // });
   }
 
   $form.find('.username, .password').keyup(function () {
