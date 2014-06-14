@@ -496,7 +496,6 @@ app.post(
     //     }
 
     // TODO: have another way to check if body has the correct elements in it.
-    // TODO: ensure that all insertions occur in parallel.
     // TODO: check to ensure that new insertion requests have larger times.
 
     if (!_.isArray(req.body.data)) {
