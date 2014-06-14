@@ -15,8 +15,6 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
 
-// TODO: have a better logging mechanism.
-
 const users = new Datastore({ filename: './.db/users', autoload: true });
 const rs = new RedisSessions();
 const rsapp = 'dbms';
@@ -31,8 +29,6 @@ const rsapp = 'dbms';
 //   users that are granted the ability to delete databases, drop tables, create
 //   new tables, etc. Only write to tables, and read from tables.
 
-// TODO: have the different series be their own tables.
-
 // TODO: all error responses should be in the same format and MIME type as what
 //   the user has initially requested.
 
@@ -46,6 +42,38 @@ mysqlConnection.connect();
 
 const app = express();
 
+const seriesMapping = [];
+function getSeries(label, callback) {
+  var series = seriesMapping[label];
+
+  if (!series) {
+    return mysqlConnection.query(
+      'SELECT * FROM time_series WHERE label = ?',
+      [label],
+      function (err, result) {
+        if (err) { return callback(err); }
+        if (!result || !result.length) {
+          return mysqlConnection.query(
+            'INSERT INTO time_series (label) VALUES (?)',
+            [label],
+            function (err) {
+              if (err) { return callback(err); }
+              getSeries(label);
+            }
+          );
+        }
+        var series = result[0];
+        seriesMapping[label] = series;
+        callback(null, series);
+      }
+    );
+  }
+
+  setImmediate(function () {
+    callback(null, device);
+  });
+}
+
 // The device ID in the database, and the device ID from the house can be
 // entirely different. Hence there should be a physical device ID to database
 // device ID mapping.
@@ -54,11 +82,25 @@ const devicesMapping = [];
 function getDevice(id, series, callback) {
   var device = devicesMapping[[id, series].join(':')];
 
-  // This means that the device was never cached, and hence we have to query the
-  // database.
+  // TODO:
+  //   1. have an entirely separate table for time series data.
+  //   2. if a given time series is not on record in the other table, then
+  //      create it.
+  //   3. have a device row's "type" attribute be tied to a row in the other
+  //      table.
+
   if (!device) {
+      // This means that the device was never cached, and hence we have to query
+      // the database.
+
     return mysqlConnection.query(
-      'SELECT * FROM devices WHERE real_device_id = ? AND type = ?;',
+      // This query should return a table with the following columns:
+      //
+      // - id, that represents the database ID.
+      // - series, that represents the time series label.
+      'SELECT devices.id AS id, time_series.label AS series FROM devices \
+      INNER JOIN time_series ON (devices.series_id = time_series.id) \
+      WHERE device.real_device_id = ? AND time_series.label = ?;',
       [id, series],
       function (err, result) {
         if (err) { return callback(err); }
@@ -66,15 +108,29 @@ function getDevice(id, series, callback) {
         // This means that the device is not even in the database. Insert it,
         // and get the row from the database.
         if (!result || !result.length) {
-          return mysqlConnection.query(
-            'INSERT INTO devices (real_device_id, type) VALUES (?, ?)',
-            [id, series],
-            function (err) {
-              if (err) { return callback(err); }
-              getDevice(id, series, callback);
+          return async.waterfall([
+            // First, get the row ID of the requested series.
+            function (callback) {
+              getSeries(series, callback);
+            },
+            // Next, use the received series ID and store it in the row along
+            // with the new device.
+            function (series, callback) {
+              mysqlConnection.query(
+                'INSERT INTO devices (real_device_id, series_id) VALUES (?, ?)',
+                [id, series.id],
+                function (err) {
+                  if (err) { return callback(err); }
+                  callback(null);
+                }
+              );
             }
-          );
+          ], function (err) {
+            if (err) { return callback(err); }
+            getDevice(id, series, callback);
+          });
         }
+
         var device = result[0];
         devicesMapping[[id, series].join(':')] = device;
         callback(null, device);
@@ -149,9 +205,6 @@ app.get(
 
     // TODO: when no interval is supplied, don't apply any aggregate functions.
 
-    // TODO: have a `from` and `to` parameters. `From` will be the earliest in
-    //   in time that the data was stored, and `to` will be latest.
-
     // TODO: should the data be retrieved in the SQL style? That is, whatever
     //   'column' the user requests (that is, either of mean, sum, min, or max),
     //   that's the column name that is going to be returned? Or should it be
@@ -204,8 +257,11 @@ app.get(
       sum: 'SUM'
     };
 
-    // TODO: throw an error for unsupported aggregate functions.
     const aggregateFunction = req.query.func || 'mean';
+
+    if (!mysqlFunctionMapping[aggregateFunction]) {
+      return res.send(400, 'Aggregate function not supported.');
+    }
 
     // Next, get the interval based on the user-supplied interval value. This
     // one is multi-part.
@@ -288,8 +344,6 @@ app.get(
       timeWindow = mysql.format(timeWindow, values);
     }
 
-    console.log(timeWindow);
-
     const sql = mysql.format(
       util.format(
         'SELECT\n \
@@ -302,7 +356,9 @@ app.get(
             FROM %s\n \
             WHERE\n \
               device_id IN (\n \
-                SELECT id FROM devices WHERE type = ? %s\n \
+                SELECT devices.id FROM devices \
+                  INNER JOIN time_series ON devices.series_id = time_series.id \
+                  WHERE time_series.label = ? %s\n \
               )\n \
               %s \
             GROUP BY device_id, time\n \
@@ -334,11 +390,12 @@ app.get(
   restrictRead,
   function (req, res, next) {
     mysqlConnection.query(
-      'SELECT DISTINCT(type) as type FROM devices',
+      'SELECT label FROM time_series',
       function (err, result) {
+        console.log(result);
         if (err) { return next(err); }
-        res.json(result.map(function (device) {
-          return device.type
+        res.json(result.map(function (series) {
+          return series.label
         }));
       }
     )
