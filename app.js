@@ -408,11 +408,16 @@ app.get(
   restrictRead,
   function (req, res, next) {
     mysqlConnection.query(
-      'SELECT real_device_id as id, type, name FROM devices',
+      'SELECT \
+          devices.real_device_id as id, \
+          time_series.label AS series, \
+          devices.name AS name \
+        FROM devices \
+      INNER JOIN time_series ON (devices.series_id = time_series.id)',
       function (err, result) {
         if (err) { return next(err); }
         var grouped = _.groupBy(result, function (device) {
-          return device.type;
+          return device.series;
         });
         for (var key in grouped) {
           grouped[key] = grouped[key].map(function (device) {
@@ -431,7 +436,9 @@ app.get(
   restrictRead,
   function (req, res, next) {
     mysqlConnection.query(
-      'SELECT real_device_id as id, name FROM devices WHERE type = ?',
+      'SELECT devices.real_device_id as id, devices.name FROM devices \
+      INNER JOIN time_series ON (devices.series_id = time_series.id) \
+      WHERE time_series.label = ?',
       [req.params.series],
       function (err, result) {
         if (err) { return next(err); }
