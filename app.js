@@ -382,7 +382,6 @@ app.get(
     mysqlConnection.query(
       'SELECT label FROM time_series',
       function (err, result) {
-        console.log(result);
         if (err) { return next(err); }
         res.json(result.map(function (series) {
           return series.label
