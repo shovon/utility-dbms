@@ -42,35 +42,76 @@ mysqlConnection.connect();
 
 const app = express();
 
-const seriesMapping = [];
+const seriesMapping = {};
+const seriesReadQueue = [];
+var busy = false;
+
 function getSeries(label, callback) {
+  // TODO: refactor the code so that there aren't any repetitions.
+
   var series = seriesMapping[label];
 
+  function ret(err, series) {
+    callback(err, series);
+    busy = false;
+    if (seriesReadQueue.length) {
+      var request = seriesReadQueue.pop();
+      setImmediate(function () {
+        getSeries(request[0], request[1]);
+      });
+    }
+  }
+
   if (!series) {
+    if (busy) {
+      seriesReadQueue.unshift(Array.prototype.slice.call(arguments));
+      return;
+    }
+    busy = true;
+    var selectQuery = 'SELECT * FROM time_series WHERE label = ?';
     return mysqlConnection.query(
-      'SELECT * FROM time_series WHERE label = ?',
+      selectQuery,
       [label],
       function (err, result) {
         if (err) { return callback(err); }
         if (!result || !result.length) {
+          var timeCreated = new Date();
           return mysqlConnection.query(
-            'INSERT INTO time_series (label) VALUES (?)',
-            [label],
+            'INSERT INTO time_series ( \
+              label, \
+              time_created, \
+              time_modified \
+            ) VALUES (?, ?, ?)',
+            [label, timeCreated, timeCreated],
             function (err) {
-              if (err) { return callback(err); }
-              getSeries(label);
+              if (err) { return ret(err); }
+
+              // No choice but to repeat code here, unfortunately.
+              mysqlConnection.query(
+                selectQuery,
+                [label],
+                function (err, result) {
+                  if (err) { return callback(err); }
+                  if (!result || !result.length) {
+                    return callback(new Error('Can\'t create series'));
+                  }
+                  var series = result[0];
+                  seriesMapping[label] = series;
+                  ret(null, series);
+                }
+              )
             }
           );
         }
         var series = result[0];
         seriesMapping[label] = series;
-        callback(null, series);
+        ret(null, series);
       }
     );
   }
 
   setImmediate(function () {
-    callback(null, device);
+    ret(null, series);
   });
 }
 
@@ -109,9 +150,16 @@ function getDevice(id, series, callback) {
             // Next, use the received series ID and store it in the row along
             // with the new device.
             function (series, callback) {
+              const timeCreated = new Date();
               mysqlConnection.query(
-                'INSERT INTO devices (real_device_id, series_id) VALUES (?, ?)',
-                [id, series.id],
+                'INSERT INTO devices ( \
+                  real_device_id, \
+                  series_id, \
+                  time_created, \
+                  time_modified \
+                ) \
+                VALUES (?, ?, ?, ?)',
+                [id, series.id, timeCreated, timeCreated],
                 function (err) {
                   if (err) { return callback(err); }
                   callback(null);
