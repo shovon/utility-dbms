@@ -82,13 +82,6 @@ const devicesMapping = [];
 function getDevice(id, series, callback) {
   var device = devicesMapping[[id, series].join(':')];
 
-  // TODO:
-  //   1. have an entirely separate table for time series data.
-  //   2. if a given time series is not on record in the other table, then
-  //      create it.
-  //   3. have a device row's "type" attribute be tied to a row in the other
-  //      table.
-
   if (!device) {
       // This means that the device was never cached, and hence we have to query
       // the database.
@@ -453,11 +446,6 @@ app.post(
   restrictWrite,
   function (req, res, next) {
     // TODO: accept a more compact JSON format.
-
-    // TODO: all series should be stored into a separate table, and all
-    //   devices' `type` column should be an integer, representing the unique
-    //   ID of a row, of a given series. This way, we should be able to specify
-    //   metadata about a time series.
 
     // For each data point the object's body will look like:
     //
