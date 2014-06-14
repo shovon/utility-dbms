@@ -1,4 +1,5 @@
-body {
+#graph {
+  font: 10px sans-serif;
 }
 
 .axis path,

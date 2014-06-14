@@ -132,7 +132,12 @@
         type: 'GET',
         data: opts
       }).done(function (data) {
-        callback(null, data);
+        callback(null, data.map(function (point) {
+          return {
+            time: new Date(point.time),
+            value: point.value
+          };
+        }));
       }).fail(function (xhr, status) {
         console.log(xhr);
       });

@@ -79,8 +79,8 @@ var DevicesListView = Backbone.View.extend({
           if (err) {
             return alert('Failed to get data. :(');
           }
-          // drawGraph(data);
-          console.log(data);
+          drawGraph(data);
+          // console.log(data);
         }
       );
     });

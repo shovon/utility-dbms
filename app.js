@@ -198,12 +198,7 @@ app.get(
 
     // TODO: when no interval is supplied, don't apply any aggregate functions.
 
-    // TODO: should the data be retrieved in the SQL style? That is, whatever
-    //   'column' the user requests (that is, either of mean, sum, min, or max),
-    //   that's the column name that is going to be returned? Or should it be
-    //   just returned as 'value'?
-
-    // The list of query parameters that will affect the above query are:
+    // The list of query parameters that will affect the SQL query are:
     //
     //     func. Optional. Can be either of mean, min, max sum. Defaults to
     //       mean, when omitted.

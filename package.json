@@ -1,7 +1,7 @@
 {
   "version": "0.0.1",
   "scripts": {
-    "develop": "NODE_ENV=development nodemon -i public/ -i dashboard/ -i utilities/ -i test/ app.js",
+    "develop": "NODE_ENV=development nodemon -i dashboard/ -i utilities/ -i test/ app.js",
     "mocha": "./node_modules/.bin/mocha"
   },
   "dependencies": {
