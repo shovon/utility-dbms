@@ -100,7 +100,7 @@ function getDevice(id, series, callback) {
       // - series, that represents the time series label.
       'SELECT devices.id AS id, time_series.label AS series FROM devices \
       INNER JOIN time_series ON (devices.series_id = time_series.id) \
-      WHERE device.real_device_id = ? AND time_series.label = ?;',
+      WHERE devices.real_device_id = ? AND time_series.label = ?;',
       [id, series],
       function (err, result) {
         if (err) { return callback(err); }
