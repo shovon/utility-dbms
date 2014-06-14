@@ -31,8 +31,13 @@
 
   // TODO: there are a lot of repetitions going on, regarding log-in.
 
-  function toDate(str) {
-    var date = new Date();
+  function toDate(str, date) {
+    date = date || new Date();
+    date = new Date(date);
+
+    var datestrings = str.split(/\s+/);
+    str = datestrings.shift();
+
     var number = str.match(/\d+/)[0];
     var unit = str.match(/(s|m|h|d|w|y)o?/)[0];
 
@@ -45,12 +50,12 @@
       case 'm':
         var minutes = date.getMinutes();
         minutes -= number;
-        date.getMinutes(minutes);
+        date.setMinutes(minutes);
         break;
       case 'h':
         var hours = date.getHours();
         hours -= number;
-        date.getHours(hours);
+        date.setHours(hours);
         break;
       case 'd':
         var days = date.getDate();
@@ -76,6 +81,10 @@
         return new Date('');
     }
 
+    if (datestrings.length) {
+      return toDate(datestrings.join(' '), date);
+    }
+
     return date;
   }
 
@@ -99,7 +108,7 @@
       opts.session = self.session;
 
       function isShortcodeDate(str) {
-        return /^\d+((m|h|d|w|y)o?)?$/.test(str);
+        return /^\d+((m|h|d|w|y)o?)?/.test(str);
       }
 
       if (opts.from) {
@@ -117,6 +126,8 @@
           opts.to = new Date(opts.to);
         }
       }
+
+      console.log(opts);
 
       $.ajax({
         url: self.host + '/data/' + series,

@@ -139,8 +139,6 @@ function restrictWrite(req, res, next) {
   });
 }
 
-
-
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -278,17 +276,19 @@ app.get(
       var values = [];
       if (req.query.from) {
         timeWindow += 'time > ? '
-        values.push(req.query.from);
+        values.push(new Date(req.query.from));
       }
       if (req.query.to) {
         if (req.query.from) {
           timeWindow += 'AND '
         }
         timeWindow += 'time < ? '
-        values.push(req.query.to);
+        values.push(new Date(req.query.to));
       }
       timeWindow = mysql.format(timeWindow, values);
     }
+
+    console.log(timeWindow);
 
     const sql = mysql.format(
       util.format(
