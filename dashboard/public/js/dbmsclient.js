@@ -127,8 +127,6 @@
         }
       }
 
-      console.log(opts);
-
       $.ajax({
         url: self.host + '/data/' + series,
         type: 'GET',

@@ -340,10 +340,10 @@ app.get(
     const sql = mysql.format(
       util.format(
         'SELECT\n \
-            %s(%s) AS %s,\n \
+            %s(value) AS value,\n \
             FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(time) / ?) * ?) AS time\n \
           FROM (\n \
-            SELECT SUM(%s) AS %s,\n \
+            SELECT SUM(%s) AS value,\n \
             time,\n \
             device_id\n \
             FROM %s\n \
@@ -359,9 +359,6 @@ app.get(
           )\n AS summed\n \
           GROUP BY FLOOR(UNIX_TIMESTAMP(time) / ?) * ? ORDER BY time DESC',
         mysqlFunctionMapping[aggregateFunction],
-        granularity === 's' ? 'value' : aggregateFunction,
-        aggregateFunction,
-        granularity === 's' ? 'value' : aggregateFunction,
         granularity === 's' ? 'value' : aggregateFunction,
         tableName,
         whereDevicesQuery,
