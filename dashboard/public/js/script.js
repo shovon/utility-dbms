@@ -6,7 +6,8 @@ var DevicesListView = Backbone.View.extend({
     
     var self = this;
 
-    this.$fromHourTextbox = this.$el.find('.from-hour-textbox');
+    this.$fromTimeTextbox = this.$el.find('.from-time-textbox');
+    this.$toTimeTextbox = this.$el.find('.to-time-textbox');
 
     this.$devicesBox = this.$el.find('.devices-box');
 
@@ -58,7 +59,15 @@ var DevicesListView = Backbone.View.extend({
       }
 
       if (/(min|max|sum)/.test(self.$aggregateFunctionSelector.val())) {
-        data.func =self.$aggregateFunctionSelector.val();
+        data.func = self.$aggregateFunctionSelector.val();
+      }
+
+      if (self.$fromTimeTextbox.val()) {
+        data.from = self.$fromTimeTextbox.val();
+      }
+
+      if (self.$toTimeTextbox.val()) {
+        data.to = self.$toTimeTextbox.val();
       }
 
       data.session = self.options.token;

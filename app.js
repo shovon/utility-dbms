@@ -21,8 +21,6 @@ const users = new Datastore({ filename: './.db/users', autoload: true });
 const rs = new RedisSessions();
 const rsapp = 'dbms';
 
-// TODO: add an authentication mechanism.
-
 // TODO: all client errors should be responded using a 4xx error status code.
 //   hence, avoid calling the `next` callback.
 

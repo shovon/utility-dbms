@@ -31,6 +31,54 @@
 
   // TODO: there are a lot of repetitions going on, regarding log-in.
 
+  function toDate(str) {
+    var date = new Date();
+    var number = str.match(/\d+/)[0];
+    var unit = str.match(/(s|m|h|d|w|y)o?/)[0];
+
+    switch (unit) {
+      case 's':
+        var seconds = date.getSeconds();
+        seconds -= number;
+        date.setSeconds(seconds);
+        break;
+      case 'm':
+        var minutes = date.getMinutes();
+        minutes -= number;
+        date.getMinutes(minutes);
+        break;
+      case 'h':
+        var hours = date.getHours();
+        hours -= number;
+        date.getHours(hours);
+        break;
+      case 'd':
+        var days = date.getDate();
+        days -= number;
+        date.setDate(days);
+        break;
+      case 'w':
+        var days = date.getDate();
+        days -= number * 7;
+        date.setDate(days);
+        break;
+      case 'mo':
+        var months = date.getMonth();
+        months -= number;
+        date.setMonth(months);
+        break;
+      case 'y':
+        var years = date.getFullYear();
+        years -= number;
+        date.setFullYear(years);
+        break;
+      default:
+        return new Date('');
+    }
+
+    return date;
+  }
+
   DBMSClient.prototype.getData = function (series, options, callback) {
     options = options || {};
     var self = this;
@@ -49,6 +97,26 @@
       }
 
       opts.session = self.session;
+
+      function isShortcodeDate(str) {
+        return /^\d+((m|h|d|w|y)o?)?$/.test(str);
+      }
+
+      if (opts.from) {
+        if (isShortcodeDate(opts.from)) {
+          opts.from = toDate(opts.from);
+        } else {
+          opts.from = new Date(opts.from);
+        }
+      }
+
+      if (opts.to) {
+        if (isShortcodeDate(opts.to)) {
+          opts.to = toDate(opts.to);
+        } else {
+          opts.to = new Date(opts.to);
+        }
+      }
 
       $.ajax({
         url: self.host + '/data/' + series,

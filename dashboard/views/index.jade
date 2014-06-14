@@ -56,7 +56,7 @@ html(lang='en')
             <label for='from'>From</label>
 
             <div>
-              <input name='from' type='text' class='form-control' paceholder='Click to pick date'>
+              <input name='from' type='text' class='form-control from-time-textbox' placeholder='e.g. 1m, 20d, 5mo, etc.'>
             </div>
 
           </div>
@@ -64,7 +64,7 @@ html(lang='en')
           <div class='col-md-6'>
             <label for='to'>To</label>
             <div>
-                <input name='from-control' type='text' class='form-control' paceholder='Click to pick date'>
+              <input name='to' type='text' class='form-control to-time-textbox' placeholder='e.g. 1m, 20d, 5mo, etc.'>
             </div>
           </div>
         </div>
@@ -84,7 +84,7 @@ html(lang='en')
             </div>
             <div class='col-xs-6'>
               <select class='form-control granularity-selector'>
-                <option value='none'>None</option>
+                <option value='none'>Per second</option>
                 <option value='m'>Per minute</option>
                 <option value='h'>Hourly</option>
                 <option value='w'>Weekly</option>
