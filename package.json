@@ -1,8 +1,8 @@
 {
   "version": "0.0.1",
   "scripts": {
-    "develop": "NODE_ENV=development nodemon -i dashboard/ -i utilities/ -i test/ app.js",
-    "mocha": "./node_modules/.bin/mocha"
+    "start": "node app",
+    "develop": "NODE_ENV=development nodemon -i dashboard/ -i utilities/ -i test/ app.js"
   },
   "dependencies": {
     "mysql": "^2.3.2",
