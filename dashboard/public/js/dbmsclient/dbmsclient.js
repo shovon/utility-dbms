@@ -145,6 +145,12 @@
         data: opts
       }).done(function (data) {
         callback(null, data.map(function (point) {
+          if (typeof point.hour == 'number') {
+            return {
+              hour: point.hour,
+              value: point.value
+            };
+          }
           return {
             time: new Date(point.time),
             value: point.value

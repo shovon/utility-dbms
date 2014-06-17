@@ -32,10 +32,9 @@ function drawGraph(data) {
   var currentTime = new Date();
   data.forEach(function(d) {
     d.value = +d.value;
-    if (typeof d.time == 'number') {
-      var hour = d.time;
+    if (typeof d.hour == 'number') {
       d.time = new Date(currentTime);
-      d.time.setHours(hour);
+      d.time.setHours(d.hour - 7);
     }
   });
 
