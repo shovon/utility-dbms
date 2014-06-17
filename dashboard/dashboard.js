@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('path');
-const settings = require('../settings');
+const settings = require('./settings');
 
 const app = express();
 

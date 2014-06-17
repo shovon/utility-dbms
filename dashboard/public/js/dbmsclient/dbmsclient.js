@@ -127,6 +127,10 @@
         }
       }
 
+      if (opts.devices) {
+        opts.devices = JSON.stringify(opts.devices);
+      }
+
       $.ajax({
         url: self.host + '/data/' + series,
         type: 'GET',
