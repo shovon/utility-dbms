@@ -38,6 +38,7 @@ Gets data stored in the time series, specified by `timeSeries`. Additionally, yo
 
 A lot of the `options` object's properties are an attempt of being a mapping of the original HTTP API calls. There are some discrepancies for the sake of simplifying the task of querying.
 
+| Property | Description |
 | --- | --- |
 | func | The aggregate function to apply to the time series data. Accepted aggregate functions are `mean`, `min`, `max`, and `sum`. When omitted, `func` defaults to mean. |
 | `interval | The time interval to which the aggregate data into. Can be either per row (technically per second), per minute (m), hourly (h), daily (d), weekly (w), monthly (mo), and yearly (y). The interval typically takes the form of `<amount><interval token>`, e.g. `12h` for "twelve hours", or `60d` for "sixty days", or `10` for "10 seconds" (N.B. the omitted token). When omitted, `interval` defaults to `1` |
