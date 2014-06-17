@@ -1,8 +1,9 @@
 window.drawGraph = drawGraph;
 function drawGraph(data) {
+  $('svg').remove();
   var margin = {top: 20, right: 20, bottom: 30, left: 50},
-      width = 960 - margin.left - margin.right,
-      height = 500 - margin.top - margin.bottom;
+      width = 765 - margin.left - margin.right,
+      height = 650 - margin.top - margin.bottom;
 
   var x = d3.time.scale()
       .range([0, width]);
@@ -22,7 +23,7 @@ function drawGraph(data) {
       .x(function(d) { return x(d.time); })
       .y(function(d) { return y(d.value); });
 
-  var svg = d3.select("body").append("svg")
+  var svg = d3.select("#graph").append("svg")
       .attr("width", width + margin.left + margin.right)
       .attr("height", height + margin.top + margin.bottom)
     .append("g")

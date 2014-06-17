@@ -8,10 +8,13 @@ html(lang='en')
     link(rel='stylesheet' href='/css/style.css')
 
   body
-    #graph-holder
-      #graph
     .container
-      #devices-list-view
+      .row
+        .col-xs-8
+          #graph-holder
+            #graph
+        .col-xs-4
+          #devices-list-view
 
     .modal.fade#login-dialog(tabindex='-1' role='dialog' aria-labelledby='myModalLabel' aria-hidden='true')
       .modal-dialog
@@ -30,6 +33,7 @@ html(lang='en')
             button.btn.btn-primary.log-in(type='button' data-dismiss='modal') Log In
 
     script#devices-list(type='text/underscore').
+      <br>
       <div role='form'>
         <div class='row'>
           <div class='col-md-12'>
@@ -54,75 +58,127 @@ html(lang='en')
         <br>
 
         <div class='row'>
-          <div class='col-md-6'>
-            <label for='from'>From</label>
 
-            <div>
-              <input name='from' type='text' class='form-control from-time-textbox' placeholder='e.g. 1m, 20d, 5mo, etc.'>
+          <div class='col-xs-12'>
+            <div class='row'>
+              <div class='col-md-12'>
+                <label for='from'>From</label>
+
+                <div>
+                  <input name='from' type='text' class='form-control from-time-textbox' placeholder='e.g. 1m, 20d, 5mo, etc.'>
+                </div>
+
+              </div>
             </div>
 
+            <br>
+
+            <div class='row'>
+              <div class='col-md-12'>
+                <label for='to'>To</label>
+                <div>
+                  <input name='to' type='text' class='form-control to-time-textbox' placeholder='e.g. 1m, 20d, 5mo, etc.'>
+                </div>
+              </div>
+            </div>
+
+            <br>
+
+            <div class='row'>
+              <div class='col-xs-12'>
+                <div class='row'>
+                  <div class='col-xs-12'>
+                    <label>Granularity</label>
+                  </div>
+                </div>
+                <div class='row'>
+                  <div class='col-xs-6'>
+                    <input class='form-control units-textbox' type='text' value='1'>
+                  </div>
+                  <div class='col-xs-6'>
+                    <select class='form-control granularity-selector'>
+                      <option value='none'>Per second</option>
+                      <option value='m'>Per minute</option>
+                      <option value='h'>Hourly</option>
+                      <option value='w'>Weekly</option>
+                      <option value='mo'>Monthly</option>
+                      <option value='d'>Daily</option>
+                      <option value='y'>Yearly</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <br>
+
+            <div class='row'>
+
+              <div class='col-xs-6'>
+                <div class='row'>
+                  <div class='col-xs-12'>
+                    <label>Aggregate Function</label>
+                  </div>
+                </div>
+                <div class='row'>
+                  <div class='col-xs-12'>
+                    <select class='form-control aggregate-function-selector'>
+                      <option value='mean'>Mean</option>
+                      <option value='min'>Min</option>
+                      <option value='max'>Max</option>
+                      <option value='sum'>Sum</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class='col-xs-6'>
+                <div class='row'>
+                  <div class='col-xs-12'>
+                    <label>Group by Hour</label>
+                  </div>
+                </div>
+                <div class='row'>
+                  <div class='col-xs-12'>
+                    <select class='form-control aggregate-function-selector'>
+                      <option value='none'>No</option>
+                      <option value='mean'>Mean</option>
+                      <option value='min'>Min</option>
+                      <option value='max'>Max</option>
+                      <option value='sum'>Sum</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <br>
+
+            <div class='row'>
+              <div class='col-xs-12'>
+
+                <label>Devices</label>
+
+                <div>
+                  <label>
+                    <input class='exclude-checkbox' type='checkbox'> Exclude
+                  </label>
+                </div>
+                <div class='devices-box'></div>
+
+              </div>
+            </div>
+            
+            
+          </div>
           </div>
 
-          <div class='col-md-6'>
-            <label for='to'>To</label>
-            <div>
-              <input name='to' type='text' class='form-control to-time-textbox' placeholder='e.g. 1m, 20d, 5mo, etc.'>
-            </div>
-          </div>
-        </div>
 
       </div>
       <br>
-      <div class='row'>
-        <div class='col-xs-8'>
-          <div class='row'>
-            <div class='col-xs-12'>
-              <label>Granularity</label>
-            </div>
-          </div>
-          <div class='row'>
-            <div class='col-xs-6'>
-              <input class='form-control units-textbox' type='text' value='1'>
-            </div>
-            <div class='col-xs-6'>
-              <select class='form-control granularity-selector'>
-                <option value='none'>Per second</option>
-                <option value='m'>Per minute</option>
-                <option value='h'>Hourly</option>
-                <option value='w'>Weekly</option>
-                <option value='mo'>Monthly</option>
-                <option value='d'>Daily</option>
-                <option value='y'>Yearly</option>
-              </select>
-            </div>
-          </div>
-        </div>
-        <div class='col-xs-4'>
-          <div class='row'>
-            <div class='col-xs-12'>
-              <label>Aggregate Function</label>
-            </div>
-          </div>
-          <div class='row'>
-            <div class='col-xs-12'>
-              <select class='form-control aggregate-function-selector'>
-                <option value='mean'>Mean</option>
-                <option value='min'>Min</option>
-                <option value='max'>Max</option>
-                <option value='sum'>Sum</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-      <br>
-      <div>
-        <label>
-          <input class='exclude-checkbox' type='checkbox'> Exclude
-        </label>
-      </div>
-      <button class='select-all btn btn-default'>Select all</button>
-      <div class='devices-box'></div>
+
 
     script#device-checkbox(type='text/underscore').
       <div class='checkbox'>

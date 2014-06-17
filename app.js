@@ -246,6 +246,9 @@ app.get(
 
     // TODO: when no interval is supplied, don't apply any aggregate functions.
 
+    // TODO: be able to handle shortcodes, just like what the dashboard's
+    //   `dbmsclient.js` does.
+
     // The list of query parameters that will affect the SQL query are:
     //
     //     func. Optional. Can be either of mean, min, max sum. Defaults to
@@ -260,6 +263,8 @@ app.get(
     //       intends to have all devices in the series
     //     from. Optional. an ISO 8601 string
     //     to. Optional. an ISO 8601 string
+    //     groupbyhour. Optional. Groups the data further by hours. The value is
+    //       any of the following aggregate functions: mean, min, max, sum.
 
     const granularityIntervals = {
       s: 1,
@@ -326,6 +331,13 @@ app.get(
 
     const interval = granularityIntervals[granularity] * amount;
 
+    const groupbyhour = req.query.groupbyhour;
+    if (
+      groupbyhour && !mysqlFunctionMapping[aggregateFunction]
+    ) {
+      return res.send(400, 'Aggregate function not supported.');
+    }
+
     // Now, get the table name.
 
     const tableName =
@@ -380,7 +392,7 @@ app.get(
       timeWindow = mysql.format(timeWindow, values);
     }
 
-    const sql = mysql.format(
+    const aggregateSQL = mysql.format(
       util.format(
         'SELECT\n \
             %s(value) AS value,\n \
@@ -409,6 +421,21 @@ app.get(
       ),
       [ interval, interval, seriesName, interval, interval ]
     );
+
+    var sql = aggregateSQL;
+    if (groupbyhour) {
+      sql = util.format(
+        'SELECT\n \
+            %s(value) AS value,\n \
+            HOUR(time) AS hour\n \
+          FROM (\n \
+            %s\n \
+          ) AS hourly\n \
+          GROUP BY HOUR(time) ORDER BY HOUR(time) DESC',
+        mysqlFunctionMapping[groupbyhour],
+        aggregateSQL
+      );
+    }
 
     mysqlConnection.query(sql, function (err, result) {
       if (err) { return next(err); }
@@ -476,7 +503,7 @@ app.get(
         if (err) { return next(err); }
         res.json(result);
       }
-    )
+    );
   }
 );
 
@@ -557,7 +584,6 @@ app.post(
               // Now do the actual insertion.
               mysqlConnection.query(insertionQuery,
                 function (err, result) {
-                  // TODO: this shouldn't crash. Just gracefully move on.
                   if (err) { return callback(err); }
                   callback(null);
                 }

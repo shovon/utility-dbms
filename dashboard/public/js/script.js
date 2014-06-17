@@ -44,7 +44,7 @@ var DevicesListView = Backbone.View.extend({
           devices.exclude = true;
         }
 
-        data.devices = JSON.stringify(devices);
+        data.devices = devices;
       }
 
       if (

@@ -1,3 +1,11 @@
+
+.devices-box {
+  max-height: 150px;
+  overflow-y: scroll;
+  border: 1px solid #aaa;
+  padding: 5px;
+}
+
 #graph {
   font: 10px sans-serif;
 }
