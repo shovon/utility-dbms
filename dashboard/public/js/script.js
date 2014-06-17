@@ -62,6 +62,10 @@ var DevicesListView = Backbone.View.extend({
         data.func = self.$aggregateFunctionSelector.val();
       }
 
+      if (/(mean|min|max|sum)/.test(self.$groupbyhourSelector.val())) {
+        data.groupbyhour = self.$groupbyhourSelector.val();
+      }
+
       if (self.$fromTimeTextbox.val()) {
         data.from = self.$fromTimeTextbox.val();
       }
@@ -87,6 +91,8 @@ var DevicesListView = Backbone.View.extend({
 
     this.$aggregateFunctionSelector =
       this.$el.find('.aggregate-function-selector');
+
+    this.$groupbyhourSelector = this.$el.find('.groupbyhour-selector');
 
     this.options.dbmsclient.getSeries(function (err, series) {
       if (err) {

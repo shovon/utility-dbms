@@ -131,6 +131,14 @@
         opts.devices = JSON.stringify(opts.devices);
       }
 
+      var finalOpts = {};
+
+      var props =
+        [ 'func', 'interval', 'devices', 'from', 'to', 'groupbyhour' ];
+      props.forEach(function (prop) {
+        opts[prop] && (finalOpts[prop] = opts[prop]);
+      });
+
       $.ajax({
         url: self.host + '/data/' + series,
         type: 'GET',

@@ -29,8 +29,14 @@ function drawGraph(data) {
     .append("g")
       .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
+  var currentTime = new Date();
   data.forEach(function(d) {
     d.value = +d.value;
+    if (typeof d.time == 'number') {
+      var hour = d.time;
+      d.time = new Date(currentTime);
+      d.time.setHours(hour);
+    }
   });
 
   x.domain(d3.extent(data, function(d) { return d.time; }));

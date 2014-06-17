@@ -336,6 +336,9 @@ app.get(
       groupbyhour && !mysqlFunctionMapping[aggregateFunction]
     ) {
       return res.send(400, 'Aggregate function not supported.');
+    } else if (groupbyhour) {
+      granularity = 'h';
+      interval = granularityIntervals[granularity];
     }
 
     // Now, get the table name.
