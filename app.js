@@ -440,8 +440,11 @@ app.get(
       );
     }
 
+    var start = new Date();
+    console.log(sql);
     mysqlConnection.query(sql, function (err, result) {
       if (err) { return next(err); }
+      console.log(new Date().getTime() - start.getTime());
       res.send(result);
     });
   }
