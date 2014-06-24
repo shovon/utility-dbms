@@ -705,18 +705,22 @@ app.post(
 
 // Allows clients to log in.
 app.post('/login', function (req, res, next) {
+  console.log('Got request to log in.');
   users.find({ username: req.body.username }, function (err, docs) {
+    console.log('Done querying');
     if (err) { return next(err); }
     const doc = docs[0];
     if (!doc) {
       return res.send(403, 'Username and password don\'t match');
     }
+    console.log('Comparing passwords')
     bcrypt.compare(req.body.password, doc.hash, function (err, result) {
       if (err) { return next(err); }
       if (!result) { res.send(403, 'Username and password don\'t match.'); }
 
       const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
+      console.log('Creating a Redis session');
       return rs.create(
         {
           app: rsapp,
@@ -724,6 +728,7 @@ app.post('/login', function (req, res, next) {
           ip: ip
         },
         function (err, resp) {
+          console.log('Done creating a Redis session.');
           if (err) { return next(err); }
           res.send(resp);
         }
