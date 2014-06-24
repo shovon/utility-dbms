@@ -441,10 +441,8 @@ app.get(
     }
 
     var start = new Date();
-    console.log(sql);
     mysqlConnection.query(sql, function (err, result) {
       if (err) { return next(err); }
-      console.log(new Date().getTime() - start.getTime());
       res.send(result);
     });
   }
@@ -455,12 +453,10 @@ app.get(
   '/series',
   restrictRead,
   function (req, res, next) {
-    var start = new Date();
     mysqlConnection.query(
       'SELECT label FROM time_series',
       function (err, result) {
         if (err) { return next(err); }
-        console.log(new Date().getTime() - start.getTime());
         res.json(result.map(function (series) {
           return series.label
         }));
