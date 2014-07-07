@@ -330,6 +330,6 @@ app.post('/login', function (req, res, next) {
   });
 });
 
-app.listen(settings.get('reader:port') || 4406, function () {
+app.listen(settings.get('reader:port') || 4407, function () {
   console.log('DBMS server listening on port %s', this.address().port);
 });
