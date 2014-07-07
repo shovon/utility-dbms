@@ -325,11 +325,11 @@ app.get(
         req.query.interval && req.query.interval.match(/(m|h|d|w|y)o?$/)
       ) || null;
 
-    const granularity =
+    var granularity =
       (granularityMatch &&
       granularityMatch[0]) || 's';
 
-    const interval = granularityIntervals[granularity] * amount;
+    var interval = granularityIntervals[granularity] * amount;
 
     const groupbyhour = req.query.groupbyhour;
     if (
@@ -516,6 +516,7 @@ app.post(
   restrictWrite,
   function (req, res, next) {
     // TODO: accept a more compact JSON format.
+    // TODO: optimize this. Too many queries, which is causing major slow-downs.
 
     // For each data point the object's body will look like:
     //
