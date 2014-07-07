@@ -37,8 +37,11 @@ const mysqlSettings = _.pick(
   [ 'host', 'user', 'password', 'database' ]
 );
 
-const mysqlConnection = mysql.createConnection(mysqlSettings);
-mysqlConnection.connect();
+const mysqlWriterConnection = mysql.createConnection(mysqlSettings);
+mysqlWriterConnection.connect();
+
+const mysqlReaderConnection = mysql.createConnection(mysqlSettings);
+mysqlReaderConnection.connect();
 
 const app = express();
 
@@ -69,14 +72,14 @@ function getSeries(label, callback) {
     }
     busy = true;
     var selectQuery = 'SELECT * FROM time_series WHERE label = ?';
-    return mysqlConnection.query(
+    return mysqlReaderConnection.query(
       selectQuery,
       [label],
       function (err, result) {
         if (err) { return callback(err); }
         if (!result || !result.length) {
           var timeCreated = new Date();
-          return mysqlConnection.query(
+          return mysqlWriterConnection.query(
             'INSERT INTO time_series ( \
               label, \
               time_created, \
@@ -87,7 +90,7 @@ function getSeries(label, callback) {
               if (err) { return ret(err); }
 
               // No choice but to repeat code here, unfortunately.
-              mysqlConnection.query(
+              mysqlReaderConnection.query(
                 selectQuery,
                 [label],
                 function (err, result) {
@@ -127,7 +130,7 @@ function getDevice(id, series, callback) {
       // This means that the device was never cached, and hence we have to query
       // the database.
 
-    return mysqlConnection.query(
+    return mysqlReaderConnection.query(
       // This query should return a table with the following columns:
       //
       // - id, that represents the database ID.
@@ -151,7 +154,7 @@ function getDevice(id, series, callback) {
             // with the new device.
             function (series, callback) {
               const timeCreated = new Date();
-              mysqlConnection.query(
+              mysqlWriterConnection.query(
                 'INSERT INTO devices ( \
                   real_device_id, \
                   series_id, \
@@ -441,7 +444,7 @@ app.get(
     }
 
     var start = new Date();
-    mysqlConnection.query(sql, function (err, result) {
+    mysqlReaderConnection.query(sql, function (err, result) {
       if (err) { return next(err); }
       res.send(result);
     });
@@ -453,7 +456,7 @@ app.get(
   '/series',
   restrictRead,
   function (req, res, next) {
-    mysqlConnection.query(
+    mysqlReaderConnection.query(
       'SELECT label FROM time_series',
       function (err, result) {
         if (err) { return next(err); }
@@ -470,7 +473,7 @@ app.get(
   '/devices',
   restrictRead,
   function (req, res, next) {
-    mysqlConnection.query(
+    mysqlReaderConnection.query(
       'SELECT \
           devices.real_device_id as id, \
           time_series.label AS series, \
@@ -498,7 +501,7 @@ app.get(
   '/devices/:series',
   restrictRead,
   function (req, res, next) {
-    mysqlConnection.query(
+    mysqlReaderConnection.query(
       'SELECT devices.real_device_id as id, devices.name FROM devices \
       INNER JOIN time_series ON (devices.series_id = time_series.id) \
       WHERE time_series.label = ?',
@@ -553,7 +556,7 @@ app.post(
 
             // Get the most recently inserted data point.
             function (device, callback) {
-              mysqlConnection.query(
+              mysqlReaderConnection.query(
                 'SELECT * FROM data_points WHERE device_id = ? \
                 ORDER BY time DESC LIMIT 1',
                 [device.id],
@@ -587,7 +590,7 @@ app.post(
                 );
 
               // Now do the actual insertion.
-              mysqlConnection.query(insertionQuery,
+              mysqlWriterConnection.query(insertionQuery,
                 function (err, result) {
                   if (err) { return callback(err); }
                   callback(null);
@@ -638,7 +641,7 @@ app.post(
 
               // Query for the most recent entry.
               function (device, callback) {
-                mysqlConnection.query(
+                mysqlReaderConnection.query(
                   'SELECT * FROM ' + granularity.name + ' \
                   WHERE device_id = ? AND time >= ? ORDER BY time DESC LIMIT 1',
                   [ device.id, roundedDownTime ],
@@ -654,7 +657,7 @@ app.post(
                 // Since nothing came up, then it means we should insert a new
                 // row.
                 if (!result || !result.length) {
-                  return mysqlConnection.query(
+                  return mysqlWriterConnection.query(
                     'INSERT INTO ' + granularity.name + ' \
                     (device_id, mean, sum, min, max, time) \
                     VALUES (?, ?, ?, ?, ?, ?)',
@@ -681,7 +684,7 @@ app.post(
                 const min = item.value < row.min ? item.value : row.min;
                 const max = item.value > row.max ? item.value : row.max;
 
-                mysqlConnection.query(
+                mysqlWriterConnection.query(
                   'UPDATE ' + granularity.name + ' \
                   SET mean = ?, sum = ?, min = ?, max = ? \
                   WHERE id = ?',
