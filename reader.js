@@ -29,6 +29,8 @@ function restrictRead(req, res, next) {
   });
 }
 
+app.use(cors());
+
 app.get(
   '/data/:series',
   restrictRead,
