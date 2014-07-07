@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "scripts": {
     "start": "node app",
-    "develop": "NODE_ENV=development nodemon -i dashboard/ -i utilities/ -i test/ app.js"
+    "develop-writer": "NODE_ENV=development nodemon -i dashboard/ -i utilities/ -i test/ writer.js"
   },
   "dependencies": {
     "mysql": "^2.3.2",
