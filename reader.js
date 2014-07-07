@@ -1,6 +1,24 @@
 const express = require('express');
 const settings = require('./settings');
 const cors = require('cors');
+const routes = require('./routes');
+const bodyParser = require('body-parser');
+const redissessions = require('./redissessions');
+const users = require('./users');
+const _ = require('lodash');
+const mysql = require('mysql');
+const util = require('util');
+
+const rs = redissessions.rs;
+const rsapp = redissessions.rsapp;
+
+const mysqlSettings = _.pick(
+  settings.get('mysql'),
+  [ 'host', 'user', 'password', 'database' ]
+);
+
+const mysqlConnection = mysql.createConnection(mysqlSettings);
+mysqlConnection.connect();
 
 const app = express();
 
@@ -31,6 +49,7 @@ function restrictRead(req, res, next) {
 }
 
 app.use(cors());
+app.use(bodyParser.json());
 
 app.get(
   '/data/:series',
@@ -233,7 +252,6 @@ app.get(
       );
     }
 
-    var start = new Date();
     mysqlConnection.query(sql, function (err, result) {
       if (err) { return next(err); }
       res.send(result);
@@ -305,34 +323,8 @@ app.get(
 );
 
 // Allows clients to log in.
-app.post('/login', function (req, res, next) {
-  users.find({ username: req.body.username }, function (err, docs) {
-    if (err) { return next(err); }
-    const doc = docs[0];
-    if (!doc) {
-      return res.send(403, 'Username and password don\'t match');
-    }
-    bcrypt.compare(req.body.password, doc.hash, function (err, result) {
-      if (err) { return next(err); }
-      if (!result) { res.send(403, 'Username and password don\'t match.'); }
-
-      const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-
-      return rs.create(
-        {
-          app: rsapp,
-          id: doc.username,
-          ip: ip
-        },
-        function (err, resp) {
-          if (err) { return next(err); }
-          res.send(resp);
-        }
-      );
-    });
-  });
-});
+app.post('/login', routes.login);
 
 app.listen(settings.get('reader:port') || 4407, function () {
-  console.log('DBMS server listening on port %s', this.address().port);
+  console.log('Reader server listening on port %s', this.address().port);
 });

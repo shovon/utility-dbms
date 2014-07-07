@@ -10,7 +10,12 @@ Next, you also want to write a settings file in the `settings` folder. We'll cal
 
 ```json
 {
-  "port": 4406,
+  "writer": {
+    "port": 4406,
+  },
+  "reader": {
+    "port": 4407
+  },
   "mysql": {
     "user": "root",
     "password": "root",
@@ -25,7 +30,11 @@ Where, all of the properties of the `mysql` property are settings you would use 
 Then, to start the DBMS, you would run the following command:
 
 ```shell
-node app
+npm start
 ```
 
 And the DBMS should start running.
+
+## Developing
+
+We use an auto reload tool, so that we can easily reload the read and the write server every time we make changes to any files.

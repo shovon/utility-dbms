@@ -7,17 +7,17 @@ const util = require('util');
 const _ = require('lodash');
 const bodyParser = require('body-parser');
 const path = require('path');
-const RedisSessions = require('redis-sessions');
+const redissessions = require('./redissessions');
 const fs = require('fs');
 const mkdirp = require('mkdirp');
-const Datastore = require('nedb');
+const users = require('./users');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
+const routes = require('./routes');
 
-const users = new Datastore({ filename: './.db/users', autoload: true });
-const rs = new RedisSessions(settings.get('redis'));
-const rsapp = 'dbms';
+const rs = redissessions.rs;
+const rsapp = redissessions.rsapp;
 
 // TODO: all client errors should be responded using a 4xx error status code.
 //   hence, avoid calling the `next` callback.
@@ -409,34 +409,8 @@ app.post(
 );
 
 // Allows clients to log in.
-app.post('/login', function (req, res, next) {
-  users.find({ username: req.body.username }, function (err, docs) {
-    if (err) { return next(err); }
-    const doc = docs[0];
-    if (!doc) {
-      return res.send(403, 'Username and password don\'t match');
-    }
-    bcrypt.compare(req.body.password, doc.hash, function (err, result) {
-      if (err) { return next(err); }
-      if (!result) { res.send(403, 'Username and password don\'t match.'); }
-
-      const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-
-      return rs.create(
-        {
-          app: rsapp,
-          id: doc.username,
-          ip: ip
-        },
-        function (err, resp) {
-          if (err) { return next(err); }
-          res.send(resp);
-        }
-      );
-    });
-  });
-});
+app.post('/login', routes.login);
 
 app.listen(settings.get('writer:port') || 4406, function () {
-  console.log('DBMS server listening on port %s', this.address().port);
+  console.log('Writer server listening on port %s', this.address().port);
 });

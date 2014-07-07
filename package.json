@@ -1,8 +1,8 @@
 {
   "version": "0.0.1",
   "scripts": {
-    "start": "node app",
-    "develop-writer": "NODE_ENV=development nodemon -i dashboard/ -i utilities/ -i test/ writer.js"
+    "start": "node starter",
+    "develop": "NODE_ENV=development nodemon -i dashboard/ -i utilities/ -i test/ starter.js"
   },
   "dependencies": {
     "mysql": "^2.3.2",
