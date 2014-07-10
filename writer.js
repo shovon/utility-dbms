@@ -282,8 +282,6 @@ app.post(
             // Finally, insert the data point that the client provided, as well
             // as update the running total.
             function (device, row, callback) {
-              console.log(row);
-              console.log(item.value);
               const insertionQuery =
                 mysql.format(
                   'INSERT INTO data_points ( \
@@ -305,6 +303,7 @@ app.post(
               // Now do the actual insertion.
               mysqlConnection.query(insertionQuery,
                 function (err, result) {
+                  if (err) { console.log('An error occurred.') }
                   if (err) { return callback(err); }
                   callback(null);
                 }
