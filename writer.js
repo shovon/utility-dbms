@@ -303,7 +303,7 @@ app.post(
               // Now do the actual insertion.
               mysqlConnection.query(insertionQuery,
                 function (err, result) {
-                  if (err) { console.log('An error occurred.') }
+                  console.log('OK...');
                   if (err) { return callback(err); }
                   callback(null);
                 }
