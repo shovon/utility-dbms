@@ -303,7 +303,6 @@ app.post(
               // Now do the actual insertion.
               mysqlConnection.query(insertionQuery,
                 function (err, result) {
-                  console.log('OK...');
                   if (err) { return callback(err); }
                   callback(null);
                 }
@@ -323,6 +322,8 @@ app.post(
       function (callback) {
         // Iterate through each items and insert/update rows for the different
         // granularities.
+
+        console.log('OK...');
 
         const granularities = [
           { name: 'data_points_1m', interval: 1000 * 60 },
