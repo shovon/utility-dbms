@@ -15,6 +15,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
 const routes = require('./routes');
+const moment = require('moment');
 
 const rs = redissessions.rs;
 const rsapp = redissessions.rsapp;
@@ -45,6 +46,10 @@ const app = express();
 const seriesMapping = {};
 const seriesReadQueue = [];
 var busy = false;
+
+function formatTime(time) {
+  return moment(time).format('YYYY-MM-DD HH:mm:ss');
+}
 
 function getSeries(label, callback) {
   // TODO: refactor the code so that there aren't any repetitions.
@@ -82,7 +87,7 @@ function getSeries(label, callback) {
               time_created, \
               time_modified \
             ) VALUES (?, ?, ?)',
-            [label, timeCreated, timeCreated],
+            [label, formatTime(timeCreated), formatTime(timeCreated)],
             function (err) {
               if (err) { return ret(err); }
 
@@ -159,7 +164,12 @@ function getDevice(id, series, callback) {
                   time_modified \
                 ) \
                 VALUES (?, ?, ?, ?)',
-                [id, series.id, timeCreated, timeCreated],
+                [
+                  id,
+                  series.id,
+                  formatTime(timeCreated),
+                  formatTime(timeCreated)
+                ],
                 function (err) {
                   if (err) { return callback(err); }
                   callback(null);
@@ -286,7 +296,7 @@ app.post(
                     // Add the to-be inserted value to the running total, if
                     // there was a row found. Otherwise, just add to 0.
                     row ? row.running_total + item.value : item.value,
-                    item.time
+                    formatTime(item.time)
                   ]
                 );
 
@@ -345,7 +355,7 @@ app.post(
                 mysqlConnection.query(
                   'SELECT * FROM ' + granularity.name + ' \
                   WHERE device_id = ? AND time >= ? ORDER BY time DESC LIMIT 1',
-                  [ device.id, roundedDownTime ],
+                  [ device.id, formatTime(roundedDownTime) ],
                   function (err, result) {
                     if (err) { return callback(err); }
                     callback(null, device, result);
@@ -368,7 +378,7 @@ app.post(
                       item.value,
                       item.value,
                       item.value,
-                      roundedDownTime
+                      formatTime(roundedDownTime)
                     ],
                     function (err, result) {
                       if (err) { return callback(err); }
