@@ -265,23 +265,36 @@ app.post(
               getDevice(item.device_id, item.series, callback)
             },
 
-            // Get the most recently inserted data point.
+            // Get the most recently inserted data point. This is to compute the
+            // running total.
             function (device, callback) {
               mysqlConnection.query(
-                'SELECT * FROM data_points WHERE device_id = ? \
-                ORDER BY time DESC LIMIT 1',
+                'SELECT * FROM running_total_cache WHERE device_id = ? limit 1',
                 [device.id],
                 function (err, result) {
                   if (err) { return callback(err); }
-                  var row = result && result.length ? result[0] : null
+                  var row = result && result.length ? result[0] : null;
                   callback(null, device, row);
                 }
               )
+
+              // mysqlConnection.query(
+              //   'SELECT * FROM data_points WHERE device_id = ? \
+              //   ORDER BY time DESC LIMIT 1',
+              //   [device.id],
+              //   function (err, result) {
+              //     if (err) { return callback(err); }
+              //     var row = result && result.length ? result[0] : null
+              //     callback(null, device, row);
+              //   }
+              // )
             },
 
             // Finally, insert the data point that the client provided, as well
             // as update the running total.
             function (device, row, callback) {
+              // N.B.: `row` is a row from the `running_total_cache` table.
+
               const insertionQuery =
                 mysql.format(
                   'INSERT INTO data_points ( \
@@ -296,7 +309,7 @@ app.post(
                     // Add the to-be inserted value to the running total, if
                     // there was a row found. Otherwise, just add to 0.
                     row ? row.running_total + item.value : item.value,
-                    formatTime(item.time)
+                    formatTime(new Date(item.time))
                   ]
                 );
 
@@ -304,7 +317,41 @@ app.post(
               mysqlConnection.query(insertionQuery,
                 function (err, result) {
                   if (err) { return callback(err); }
-                  callback(null);
+                  callback(null, device, row);
+                }
+              );
+            },
+
+            // Update the running totals cache.
+            function (device, row, callback) {
+              var sql = '';
+              if (!row) {
+                sql = mysql.format(
+                  'INSERT INTO running_total_cache ( \
+                    device_id, \
+                    running_total \
+                  ) VALUES (?, ?)',
+                  [
+                    device.id,
+                    item.value
+                  ]
+                );
+              } else {
+                sql = mysql.format(
+                  'UPDATE running_total_cache SET running_total = ? WHERE device_id = ?',
+                  [
+                    item.value + row.running_total,
+                    device.id
+                  ]
+                );
+                console.log(item.value + row.running_total);
+              }
+
+              mysqlConnection.query(
+                sql,
+                function (err, result) {
+                  if (err) { return callback(err); }
+                  callback(null, device, row);
                 }
               );
             }
@@ -322,8 +369,6 @@ app.post(
       function (callback) {
         // Iterate through each items and insert/update rows for the different
         // granularities.
-
-        console.log('OK...');
 
         const granularities = [
           { name: 'data_points_1m', interval: 1000 * 60 },
@@ -365,22 +410,43 @@ app.post(
                 );
               },
 
-              // Insert/update aggregate data.
+              // Get the running total associated with the device ID.
               function (device, result, callback) {
+                mysqlConnection.query(
+                  'SELECT * FROM running_total_cache WHERE device_id = ?',
+                  [ device.id ],
+                  function (err, runningTotal) {
+                    if (err) { return callback(err); }
+                    if (!runningTotal.length) {
+                      return callback(
+                        new Error(
+                          'There should have been data in the ' +
+                          '`running_total_cache`'
+                        )
+                      );
+                    }
+                    callback(null, device, result, runningTotal[0]);
+                  }
+                );
+              },
+
+              // Insert/update aggregate data.
+              function (device, result, runningTotalRow, callback) {
                 // Since nothing came up, then it means we should insert a new
                 // row.
                 if (!result || !result.length) {
                   return mysqlConnection.query(
                     'INSERT INTO ' + granularity.name + ' \
-                    (device_id, mean, sum, min, max, time) \
-                    VALUES (?, ?, ?, ?, ?, ?)',
+                    (device_id, mean, sum, min, max, time, running_total) \
+                    VALUES (?, ?, ?, ?, ?, ?, ?)',
                     [
                       device.id,
                       item.value,
                       item.value,
                       item.value,
                       item.value,
-                      formatTime(roundedDownTime)
+                      formatTime(roundedDownTime),
+                      runningTotalRow.running_total
                     ],
                     function (err, result) {
                       if (err) { return callback(err); }
