@@ -344,7 +344,6 @@ app.post(
                     device.id
                   ]
                 );
-                console.log(item.value + row.running_total);
               }
 
               mysqlConnection.query(
