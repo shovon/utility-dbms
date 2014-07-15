@@ -96,6 +96,10 @@ app.get(
       return res.send(400, 'Interval query invalid.');
     }
 
+    if (!req.query.from || isNaN(new Date(req.query.from))) {
+      return res.send(400, '`from` field required');
+    }
+
     // First thing's first: get the aggregate function. We'll just default to
     // the mean for the sake of it. Now, bear in mind that the aggregate
     // function terms used by MySQL is different from what we are going to be
