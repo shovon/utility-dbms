@@ -257,7 +257,7 @@ app.get(
     }
 
     if (req.query.onlysql) {
-      return return res.json({
+      return res.json({
         sql: sql
       });
     }
