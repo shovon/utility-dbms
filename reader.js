@@ -251,7 +251,7 @@ app.get(
             %s\n \
           ) AS hourly\n \
           GROUP BY HOUR(time) ORDER BY HOUR(time) DESC',
-        mysqlFunctionMapping[groupbyhour],
+        mysqlFunctionMapping[aggregateFunction],
         aggregateSQL
       );
     }
