@@ -256,6 +256,12 @@ app.get(
       );
     }
 
+    if (req.query.onlysql) {
+      return return res.json({
+        sql: sql
+      });
+    }
+
     mysqlConnection.query(sql, function (err, result) {
       if (err) { return next(err); }
       res.send(result);
