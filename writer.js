@@ -47,11 +47,15 @@ function mysqlQuery(...params) {
 }
 
 async function getSeries(label) {
+  if (!label) {
+    throw new Error('label not defined');
+  }
+
   const selectQuery = 'SELECT * FROM time_series WHERE label = ?';
   const results = await mysqlQuery(selectQuery, [label]);
   if (results && results.length) { return results; }
   var timeCreated = new Date();
-  mysqlQuery(`
+  await mysqlQuery(`
     INSERT INTO time_series (label, time_created, time_modified)
     VALUES (?, ?, ?)
     `,
@@ -64,7 +68,7 @@ async function getSeries(label) {
 // will be created, and that newly inserted row will be returned.
 async function getDevice(id, seriesLabel) {
 
-  const result = mysqlQuery(`
+  const result = await mysqlQuery(`
     SELECT devices.id AS id, time_series.label AS series FROM devices
     INNER JOIN time_series ON (devices.series_id = time_series.id)
     WHERE devices.real_device_id = ? AND time_series.label = ?;
@@ -75,8 +79,11 @@ async function getDevice(id, seriesLabel) {
   }
 
   const series = await getSeries(seriesLabel);
+  if (!series || !series.length) {
+    throw new Error('Something went wrong');
+  }
   const timeCreated = new Date();
-  mysqlQuery(`
+  await mysqlQuery(`
     INSERT INTO devices ( \
       real_device_id, \
       series_id, \
@@ -84,9 +91,10 @@ async function getDevice(id, seriesLabel) {
       time_modified \
     ) \
     VALUES (?, ?, ?, ?)
-    `, [ id, series.id, formatTime(timeCreated), formatTime(timeCreated) ]
+    `, [ id, series[0].id, formatTime(timeCreated), formatTime(timeCreated) ]
   );
   return getDevice(id, series);
+
 }
 
 app.use(cors());
@@ -105,13 +113,17 @@ app.post(
     //     }
 
     const pending = req.body.data.map(async function (point) {
-      await getSeries();
-      const devices = await getDevice();
-      const device = devices[0];
-      mysqlQuery(`
+      await getSeries(point.series);
+      const device = await getDevice(point.device_id, point.series);
+      if (!device) {
+        throw new Error('Something went wrong');
+      }
+      await mysqlQuery(`
         INSERT INTO data_points (device_id, value, time)
         VALUE (?, ?, ?);
-      `, [ device.id, point.value, new Date(point.time) ]);
+        `,
+        [ device.id, point.value, new Date(point.time) ]
+      );
     });
 
     await Promise.all(pending);
