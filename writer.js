@@ -5,6 +5,13 @@ import _ from 'lodash';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import moment from 'moment';
+import https from 'https';
+import fs from 'fs';
+import path from 'path';
+
+const cert = fs.readFileSync(path.join(__dirname, 'settings', 'keys.cert'));
+const key = fs.readFileSync(path.join(__dirname, 'settings', 'keys.key'));
+const ca = fs.readFileSync(path.join(__dirname, 'settings', 'ca.cert'));
 
 // TODO: all client errors should be responded using a 4xx error status code.
 //   hence, avoid calling the `next` callback.
@@ -93,7 +100,7 @@ async function getDevice(id, seriesLabel) {
     VALUES (?, ?, ?, ?)
     `, [ id, series[0].id, formatTime(timeCreated), formatTime(timeCreated) ]
   );
-  return getDevice(id, series);
+  return getDevice(id, seriesLabel);
 
 }
 
@@ -113,7 +120,6 @@ app.post(
     //     }
 
     const pending = req.body.data.map(async function (point) {
-      await getSeries(point.series);
       const device = await getDevice(point.device_id, point.series);
       if (!device) {
         throw new Error('Something went wrong');
@@ -132,6 +138,13 @@ app.post(
   }()).catch(next); }
 );
 
-app.listen(settings.get('writer:port') || 4406, function () {
+const port = settings.get('writer:port') || 4406;
+https.createServer({
+  key, cert, ca, requestCert: true, rejectUnauthorized: false
+}, app).listen(port, function () {
   console.log('Writer server listening on port %s', this.address().port);
 });
+
+// app.listen(, function () {
+//   console.log('Writer server listening on port %s', this.address().port);
+// });
