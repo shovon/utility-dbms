@@ -2,7 +2,35 @@
   "version": "0.0.1",
   "scripts": {
     "start": "node starter",
-    "develop": "NODE_ENV=development nodemon -i dashboard/ -i utilities/ -i test/ starter.js"
+    "develop": "NODE_ENV=development nodemon -i node_modules/ --exec \"npm run develop:run\"",
+    "develop:run": "npm run lint && node babelhook",
+    "lint": "eslint ./"
+  },
+  "eslintConfig": {
+    "env": {
+      "node": true
+    },
+    "parser": "babel-eslint",
+    "rules": {
+      "quotes": [
+        2,
+        "single",
+        "avoid-escape"
+      ],
+      "comma-dangle": [
+        0
+      ],
+      "no-underscore-dangle": [
+        0
+      ],
+      "no-empty": [
+        0
+      ],
+      "strict": [
+        2,
+        "never"
+      ]
+    }
   },
   "dependencies": {
     "mysql": "^2.3.2",
@@ -21,6 +49,9 @@
     "moment": "^2.7.0"
   },
   "devDependencies": {
+    "babel": "^5.6.14",
+    "babel-eslint": "^3.1.19",
+    "eslint": "^0.24.0",
     "mocha": "^1.20.1"
   }
 }

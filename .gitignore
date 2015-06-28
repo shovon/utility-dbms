@@ -3,3 +3,5 @@ settings/*.json
 node_modules
 .db
 dashboard/settings/*.json
+settings/*.key
+settings/*.cert
